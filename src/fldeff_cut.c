@@ -1,13 +1,14 @@
 #include "global.h"
-#include "event_obj_lock.h"
+#include "event_object_lock.h"
 #include "event_object_movement.h"
+#include "event_scripts.h"
 #include "faraway_island.h"
 #include "field_camera.h"
 #include "field_effect.h"
 #include "field_player_avatar.h"
 #include "fieldmap.h"
 #include "fldeff.h"
-#include "alloc.h"
+#include "malloc.h"
 #include "metatile_behavior.h"
 #include "overworld.h"
 #include "party_menu.h"
@@ -20,50 +21,14 @@
 #include "constants/event_objects.h"
 #include "constants/field_effects.h"
 #include "constants/songs.h"
+#include "constants/metatile_labels.h"
 
 extern struct MapPosition gPlayerFacingPosition;
 
-extern const u8 EventScript_FldEffCut[];
-extern const u8 FarawayIsland_Interior_EventScript_267EDB[];
+extern const u8 FarawayIsland_Interior_EventScript_HideMewWhenGrassCut[];
 
 extern const u8 gFieldEffectPic_CutGrass[];
-extern const u16 gFieldEffectObjectPalette6[];
-
-// tileset 0 as first
-#define METATILE_ID_GRASS 0x1
-#define METATILE_ID_POKE_GRASS 0xD
-
-#define METATILE_ID_POKE_GRASS_TREE_UP 0x25
-#define METATILE_ID_GRASS_TREE_UP 0xE
-
-#define METATILE_ID_POKE_GRASS_TREE_LEFT 0x1C6
-#define METATILE_ID_POKE_GRASS_TREE_RIGHT 0x1C7
-
-#define METATILE_ID_GRASS_TREE_LEFT 0x1CE
-#define METATILE_ID_GRASS_TREE_RIGHT 0x1CF
-
-#define METATILE_ID_POKE_LONG_GRASS 0x15
-
-// tileset 6 as second
-#define METATILE_ID_POKE_STEP_LAVA_GRASS 0x206
-#define METATILE_ID_POKE_LAVA_GRASS 0x207
-#define METATILE_ID_LAVA_FIELD 0x271
-
-// tileset 7 as second
-#define METATILE_ID_POKE_ASH_GRASS 0x20A
-#define METATILE_ID_POKE_STEP_ASH_GRASS 0x212
-#define METATILE_ID_ASH 0x218
-
-// tileset 8 as second
-#define METATILE_ID_POKE_LONG_GRASS_START 0x208
-
-#define METATILE_ID_SECRET_BASE_LEFT_LONG_GRASS 0x279
-#define METATILE_ID_SECRET_BASE_CENTER_LONG_GRASS 0x27A
-#define METATILE_ID_SECRET_BASE_RIGHT_LONG_GRASS 0x27B
-
-#define METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS 0x281
-#define METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS 0x282
-#define METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS 0x283
+extern const u16 gFieldEffectPal_CutGrass[];
 
 // cut 'square' defines
 #define CUT_NORMAL_SIDE 3
@@ -94,11 +59,11 @@ static void CutGrassSpriteCallbackEnd(struct Sprite *);
 static void HandleLongGrassOnHyper(u8, s16, s16);
 
 // IWRAM variables
-static IWRAM_DATA u8 sCutSquareSide;
-static IWRAM_DATA u8 sTileCountFromPlayer_X;
-static IWRAM_DATA u8 sTileCountFromPlayer_Y;
-static IWRAM_DATA u32 sUnused;
-static IWRAM_DATA bool8 sHyperCutTiles[CUT_HYPER_AREA];
+static u8 sCutSquareSide;
+static u8 sTileCountFromPlayer_X;
+static u8 sTileCountFromPlayer_Y;
+static u32 sUnused;
+static bool8 sHyperCutTiles[CUT_HYPER_AREA];
 
 // EWRAM variables
 static EWRAM_DATA u8 *sCutGrassSpriteArrayPtr = NULL;
@@ -127,10 +92,10 @@ static const struct HyperCutterUnk sHyperCutStruct[] =
 static const struct OamData sOamData_CutGrass =
 {
     .y = 0,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 0,
+    .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(8x8),
     .x = 0,
     .matrixNum = 0,
@@ -157,12 +122,12 @@ static const struct SpriteFrameImage sSpriteImageTable_CutGrass[] =
     {gFieldEffectPic_CutGrass, 0x20},
 };
 
-const struct SpritePalette gFieldEffectObjectPaletteInfo6 = {gFieldEffectObjectPalette6, 0x1000};
+const struct SpritePalette gSpritePalette_CutGrass = {gFieldEffectPal_CutGrass, FLDEFF_PAL_TAG_CUT_GRASS};
 
 static const struct SpriteTemplate sSpriteTemplate_CutGrass =
 {
     .tileTag = 0xFFFF,
-    .paletteTag = 0x1000,
+    .paletteTag = FLDEFF_PAL_TAG_CUT_GRASS,
     .oam = &sOamData_CutGrass,
     .anims = sSpriteAnimTable_CutGrass,
     .images = sSpriteImageTable_CutGrass,
@@ -180,7 +145,7 @@ bool8 SetUpFieldMove_Cut(void)
     bool8 cutTiles[CUT_NORMAL_AREA];
     bool8 ret;
 
-    if (CheckObjectGraphicsInFrontOfPlayer(EVENT_OBJ_GFX_CUTTABLE_TREE) == TRUE)
+    if (CheckObjectGraphicsInFrontOfPlayer(OBJ_EVENT_GFX_CUTTABLE_TREE) == TRUE)
     {
         // Standing in front of cuttable tree.
         gFieldCallback2 = FieldCallback_PrepareFadeInFromMenu;
@@ -262,17 +227,15 @@ bool8 SetUpFieldMove_Cut(void)
                 y = gPlayerFacingPosition.y + sHyperCutStruct[i].y;
                 tileCuttable = TRUE;
 
-                j = 0;
-                do
+                for (j = 0; j < 2; ++j)
                 {
-                    if (sHyperCutStruct[i].unk2[j] == 0)
-                        break;
+                    if (sHyperCutStruct[i].unk2[j] == 0) break; // one line required to match -g
                     if (cutTiles[(u8)(sHyperCutStruct[i].unk2[j] - 1)] == FALSE)
                     {
                         tileCuttable = FALSE;
                         break;
                     }
-                } while (++j <= 1);
+                }
 
                 if (tileCuttable == TRUE)
                 {
@@ -316,7 +279,7 @@ static void FieldCallback_CutGrass(void)
 
 bool8 FldEff_UseCutOnGrass(void)
 {
-    u8 taskId = oei_task_add();
+    u8 taskId = CreateFieldMoveTask();
 
     gTasks[taskId].data[8] = (u32)StartCutGrassFieldEffect >> 16;
     gTasks[taskId].data[9] = (u32)StartCutGrassFieldEffect;
@@ -327,12 +290,12 @@ bool8 FldEff_UseCutOnGrass(void)
 static void FieldCallback_CutTree(void)
 {
     gFieldEffectArguments[0] = GetCursorSelectionMonId();
-    ScriptContext1_SetupScript(EventScript_FldEffCut);
+    ScriptContext1_SetupScript(EventScript_UseCut);
 }
 
 bool8 FldEff_UseCutOnTree(void)
 {
-    u8 taskId = oei_task_add();
+    u8 taskId = CreateFieldMoveTask();
 
     gTasks[taskId].data[8] = (u32)StartCutTreeFieldEffect >> 16;
     gTasks[taskId].data[9] = (u32)StartCutTreeFieldEffect;
@@ -351,7 +314,7 @@ bool8 FldEff_CutGrass(void)
     s16 x, y;
     u8 i = 0;
 
-    PlaySE(SE_W015);
+    PlaySE(SE_M_CUT);
     PlayerGetDestCoords(&gPlayerFacingPosition.x, &gPlayerFacingPosition.y);
     for (i = 0; i < CUT_HYPER_AREA; i++)
     {
@@ -390,36 +353,36 @@ static void SetCutGrassMetatile(s16 x, s16 y)
 
     switch (metatileId)
     {
-    case METATILE_ID_POKE_LONG_GRASS_START:
-    case METATILE_ID_POKE_LONG_GRASS:
-    case METATILE_ID_POKE_GRASS:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_GRASS);
+    case METATILE_Fortree_LongGrass_Root:
+    case METATILE_General_LongGrass:
+    case METATILE_General_TallGrass:
+        MapGridSetMetatileIdAt(x, y, METATILE_General_Grass);
         break;
-    case METATILE_ID_POKE_GRASS_TREE_LEFT:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_GRASS_TREE_LEFT);
+    case METATILE_General_TallGrass_TreeLeft:
+        MapGridSetMetatileIdAt(x, y, METATILE_General_Grass_TreeLeft);
         break;
-    case METATILE_ID_POKE_GRASS_TREE_RIGHT:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_GRASS_TREE_RIGHT);
+    case METATILE_General_TallGrass_TreeRight:
+        MapGridSetMetatileIdAt(x, y, METATILE_General_Grass_TreeRight);
         break;
-    case METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_SECRET_BASE_LEFT_LONG_GRASS);
+    case METATILE_Fortree_SecretBase_LongGrass_BottomLeft:
+        MapGridSetMetatileIdAt(x, y, METATILE_Fortree_SecretBase_LongGrass_TopLeft);
         break;
-    case METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_SECRET_BASE_CENTER_LONG_GRASS);
+    case METATILE_Fortree_SecretBase_LongGrass_BottomMid:
+        MapGridSetMetatileIdAt(x, y, METATILE_Fortree_SecretBase_LongGrass_TopMid);
         break;
-    case METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_SECRET_BASE_RIGHT_LONG_GRASS);
+    case METATILE_Fortree_SecretBase_LongGrass_BottomRight:
+        MapGridSetMetatileIdAt(x, y, METATILE_Fortree_SecretBase_LongGrass_TopRight);
         break;
-    case METATILE_ID_POKE_STEP_LAVA_GRASS:
-    case METATILE_ID_POKE_LAVA_GRASS:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_LAVA_FIELD);
+    case METATILE_Lavaridge_NormalGrass:
+    case METATILE_Lavaridge_AshGrass:
+        MapGridSetMetatileIdAt(x, y, METATILE_Lavaridge_LavaField);
         break;
-    case METATILE_ID_POKE_STEP_ASH_GRASS:
-    case METATILE_ID_POKE_ASH_GRASS:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_ASH);
+    case METATILE_Fallarbor_NormalGrass:
+    case METATILE_Fallarbor_AshGrass:
+        MapGridSetMetatileIdAt(x, y, METATILE_Fallarbor_AshField);
         break;
-    case METATILE_ID_POKE_GRASS_TREE_UP:
-        MapGridSetMetatileIdAt(x, y, METATILE_ID_GRASS_TREE_UP);
+    case METATILE_General_TallGrass_TreeUp:
+        MapGridSetMetatileIdAt(x, y, METATILE_General_Grass_TreeUp);
         break;
     }
 }
@@ -437,13 +400,13 @@ static u8 GetLongGrassCaseAt(s16 x, s16 y)
 {
     u16 metatileId = MapGridGetMetatileIdAt(x, y);
 
-    if (metatileId == METATILE_ID_GRASS)
+    if (metatileId == METATILE_General_Grass)
         return LONG_GRASS_FIELD;
-    else if (metatileId == METATILE_ID_SECRET_BASE_LEFT_LONG_GRASS)
+    else if (metatileId == METATILE_Fortree_SecretBase_LongGrass_TopLeft)
         return LONG_GRASS_BASE_LEFT;
-    else if (metatileId == METATILE_ID_SECRET_BASE_CENTER_LONG_GRASS)
+    else if (metatileId == METATILE_Fortree_SecretBase_LongGrass_TopMid)
         return LONG_GRASS_BASE_CENTER;
-    else if (metatileId == METATILE_ID_SECRET_BASE_RIGHT_LONG_GRASS)
+    else if (metatileId == METATILE_Fortree_SecretBase_LongGrass_TopRight)
         return LONG_GRASS_BASE_RIGHT;
     else
         return LONG_GRASS_NONE;
@@ -457,34 +420,34 @@ static void SetCutGrassMetatiles(s16 x, s16 y)
     for (i = 0; i < sCutSquareSide; i++)
     {
         s16 currentX = x + i;
-        if (MapGridGetMetatileIdAt(currentX, y) == METATILE_ID_POKE_LONG_GRASS)
+        if (MapGridGetMetatileIdAt(currentX, y) == METATILE_General_LongGrass)
         {
             switch (GetLongGrassCaseAt(currentX, y + 1))
             {
             case LONG_GRASS_FIELD:
-                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_ID_POKE_LONG_GRASS_START);
+                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_Fortree_LongGrass_Root);
                 break;
             case LONG_GRASS_BASE_LEFT:
-                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_Fortree_SecretBase_LongGrass_BottomLeft);
                 break;
             case LONG_GRASS_BASE_CENTER:
-                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_Fortree_SecretBase_LongGrass_BottomMid);
                 break;
             case LONG_GRASS_BASE_RIGHT:
-                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(currentX, y + 1, METATILE_Fortree_SecretBase_LongGrass_BottomRight);
                 break;
             }
         }
-        if (MapGridGetMetatileIdAt(currentX, lowerY) == METATILE_ID_GRASS)
+        if (MapGridGetMetatileIdAt(currentX, lowerY) == METATILE_General_Grass)
         {
-            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_ID_POKE_LONG_GRASS_START)
-                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_ID_GRASS);
-            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS)
-                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_ID_SECRET_BASE_LEFT_LONG_GRASS);
-            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS)
-                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_ID_SECRET_BASE_CENTER_LONG_GRASS);
-            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS)
-                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_ID_SECRET_BASE_RIGHT_LONG_GRASS);
+            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_Fortree_LongGrass_Root)
+                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_General_Grass);
+            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_Fortree_SecretBase_LongGrass_BottomLeft)
+                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_Fortree_SecretBase_LongGrass_TopLeft);
+            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_Fortree_SecretBase_LongGrass_BottomMid)
+                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_Fortree_SecretBase_LongGrass_TopMid);
+            if (MapGridGetMetatileIdAt(currentX, lowerY + 1) == METATILE_Fortree_SecretBase_LongGrass_BottomRight)
+                MapGridSetMetatileIdAt(currentX, lowerY + 1, METATILE_Fortree_SecretBase_LongGrass_TopRight);
         }
     }
 
@@ -521,62 +484,62 @@ static void HandleLongGrassOnHyper(u8 caseId, s16 x, s16 y)
 
     if (arr[0] == TRUE)
     {
-        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_ID_POKE_LONG_GRASS_START)
-            MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_GRASS);
-        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS)
-            MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_SECRET_BASE_LEFT_LONG_GRASS);
-        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS)
-            MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_SECRET_BASE_CENTER_LONG_GRASS);
-        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS)
-            MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_SECRET_BASE_RIGHT_LONG_GRASS);
+        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_Fortree_LongGrass_Root)
+            MapGridSetMetatileIdAt(newX, y + 3, METATILE_General_Grass);
+        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_Fortree_SecretBase_LongGrass_BottomLeft)
+            MapGridSetMetatileIdAt(newX, y + 3, METATILE_Fortree_SecretBase_LongGrass_TopLeft);
+        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_Fortree_SecretBase_LongGrass_BottomMid)
+            MapGridSetMetatileIdAt(newX, y + 3, METATILE_Fortree_SecretBase_LongGrass_TopMid);
+        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_Fortree_SecretBase_LongGrass_BottomRight)
+            MapGridSetMetatileIdAt(newX, y + 3, METATILE_Fortree_SecretBase_LongGrass_TopRight);
     }
     if (arr[1] == TRUE)
     {
-        if (MapGridGetMetatileIdAt(newX, y + 2) == METATILE_ID_POKE_LONG_GRASS)
+        if (MapGridGetMetatileIdAt(newX, y + 2) == METATILE_General_LongGrass)
         {
             switch (GetLongGrassCaseAt(newX, y + 3))
             {
             case LONG_GRASS_FIELD:
-                MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_POKE_LONG_GRASS_START);
+                MapGridSetMetatileIdAt(newX, y + 3, METATILE_Fortree_LongGrass_Root);
                 break;
             case LONG_GRASS_BASE_LEFT:
-                MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(newX, y + 3, METATILE_Fortree_SecretBase_LongGrass_BottomLeft);
                 break;
             case LONG_GRASS_BASE_CENTER:
-                MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(newX, y + 3, METATILE_Fortree_SecretBase_LongGrass_BottomMid);
                 break;
             case LONG_GRASS_BASE_RIGHT:
-                MapGridSetMetatileIdAt(newX, y + 3, METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(newX, y + 3, METATILE_Fortree_SecretBase_LongGrass_BottomRight);
                 break;
             }
         }
 
-        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_ID_POKE_LONG_GRASS_START)
-            MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_GRASS);
-        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS)
-            MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_SECRET_BASE_LEFT_LONG_GRASS);
-        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS)
-            MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_SECRET_BASE_CENTER_LONG_GRASS);
-        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS)
-            MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_SECRET_BASE_RIGHT_LONG_GRASS);
+        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_Fortree_LongGrass_Root)
+            MapGridSetMetatileIdAt(newX, y + 4, METATILE_General_Grass);
+        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_Fortree_SecretBase_LongGrass_BottomLeft)
+            MapGridSetMetatileIdAt(newX, y + 4, METATILE_Fortree_SecretBase_LongGrass_TopLeft);
+        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_Fortree_SecretBase_LongGrass_BottomMid)
+            MapGridSetMetatileIdAt(newX, y + 4, METATILE_Fortree_SecretBase_LongGrass_TopMid);
+        if (MapGridGetMetatileIdAt(newX, y + 4) == METATILE_Fortree_SecretBase_LongGrass_BottomRight)
+            MapGridSetMetatileIdAt(newX, y + 4, METATILE_Fortree_SecretBase_LongGrass_TopRight);
     }
     if (arr[2] == TRUE)
     {
-        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_ID_POKE_LONG_GRASS)
+        if (MapGridGetMetatileIdAt(newX, y + 3) == METATILE_General_LongGrass)
         {
             switch (GetLongGrassCaseAt(newX, y + 4))
             {
             case LONG_GRASS_FIELD:
-                MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_POKE_LONG_GRASS_START);
+                MapGridSetMetatileIdAt(newX, y + 4, METATILE_Fortree_LongGrass_Root);
                 break;
             case LONG_GRASS_BASE_LEFT:
-                MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(newX, y + 4, METATILE_Fortree_SecretBase_LongGrass_BottomLeft);
                 break;
             case LONG_GRASS_BASE_CENTER:
-                MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(newX, y + 4, METATILE_Fortree_SecretBase_LongGrass_BottomMid);
                 break;
             case LONG_GRASS_BASE_RIGHT:
-                MapGridSetMetatileIdAt(newX, y + 4, METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS);
+                MapGridSetMetatileIdAt(newX, y + 4, METATILE_Fortree_SecretBase_LongGrass_BottomRight);
                 break;
             }
         }
@@ -615,11 +578,11 @@ static void CutGrassSpriteCallbackEnd(struct Sprite *sprite)
 
     FieldEffectStop(&gSprites[sCutGrassSpriteArrayPtr[0]], FLDEFF_CUT_GRASS);
     FREE_AND_SET_NULL(sCutGrassSpriteArrayPtr);
-    ScriptUnfreezeEventObjects();
+    ScriptUnfreezeObjectEvents();
     ScriptContext2_Disable();
 
     if (IsMewPlayingHideAndSeek() == TRUE)
-        ScriptContext1_SetupScript(FarawayIsland_Interior_EventScript_267EDB);
+        ScriptContext1_SetupScript(FarawayIsland_Interior_EventScript_HideMewWhenGrassCut);
 }
 
 void FixLongGrassMetatilesWindowTop(s16 x, s16 y)
@@ -630,16 +593,16 @@ void FixLongGrassMetatilesWindowTop(s16 x, s16 y)
         switch (GetLongGrassCaseAt(x, y + 1))
         {
         case LONG_GRASS_FIELD:
-            MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_POKE_LONG_GRASS_START);
+            MapGridSetMetatileIdAt(x, y + 1, METATILE_Fortree_LongGrass_Root);
             break;
         case LONG_GRASS_BASE_LEFT:
-            MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS);
+            MapGridSetMetatileIdAt(x, y + 1, METATILE_Fortree_SecretBase_LongGrass_BottomLeft);
             break;
         case LONG_GRASS_BASE_CENTER:
-            MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS);
+            MapGridSetMetatileIdAt(x, y + 1, METATILE_Fortree_SecretBase_LongGrass_BottomMid);
             break;
         case LONG_GRASS_BASE_RIGHT:
-            MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS);
+            MapGridSetMetatileIdAt(x, y + 1, METATILE_Fortree_SecretBase_LongGrass_BottomRight);
             break;
         }
     }
@@ -647,7 +610,7 @@ void FixLongGrassMetatilesWindowTop(s16 x, s16 y)
 
 void FixLongGrassMetatilesWindowBottom(s16 x, s16 y)
 {
-    if (MapGridGetMetatileIdAt(x, y) == METATILE_ID_GRASS)
+    if (MapGridGetMetatileIdAt(x, y) == METATILE_General_Grass)
     {
         u8 metatileBehavior = MapGridGetMetatileBehaviorAt(x, y + 1);
         if (MetatileBehavior_IsLongGrassSouthEdge(metatileBehavior))
@@ -655,17 +618,17 @@ void FixLongGrassMetatilesWindowBottom(s16 x, s16 y)
             s32 metatileId = MapGridGetMetatileIdAt(x, y + 1);
             switch (metatileId)
             {
-            case METATILE_ID_POKE_LONG_GRASS_START:
-                MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_GRASS);
+            case METATILE_Fortree_LongGrass_Root:
+                MapGridSetMetatileIdAt(x, y + 1, METATILE_General_Grass);
                 break;
-            case METATILE_ID_SECRET_BASE_LEFT_POKE_LONG_GRASS:
-                MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_SECRET_BASE_LEFT_LONG_GRASS);
+            case METATILE_Fortree_SecretBase_LongGrass_BottomLeft:
+                MapGridSetMetatileIdAt(x, y + 1, METATILE_Fortree_SecretBase_LongGrass_TopLeft);
                 break;
-            case METATILE_ID_SECRET_BASE_CENTER_POKE_LONG_GRASS:
-                MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_SECRET_BASE_CENTER_LONG_GRASS);
+            case METATILE_Fortree_SecretBase_LongGrass_BottomMid:
+                MapGridSetMetatileIdAt(x, y + 1, METATILE_Fortree_SecretBase_LongGrass_TopMid);
                 break;
-            case METATILE_ID_SECRET_BASE_RIGHT_POKE_LONG_GRASS:
-                MapGridSetMetatileIdAt(x, y + 1, METATILE_ID_SECRET_BASE_RIGHT_LONG_GRASS);
+            case METATILE_Fortree_SecretBase_LongGrass_BottomRight:
+                MapGridSetMetatileIdAt(x, y + 1, METATILE_Fortree_SecretBase_LongGrass_TopRight);
                 break;
             }
         }
@@ -674,7 +637,7 @@ void FixLongGrassMetatilesWindowBottom(s16 x, s16 y)
 
 static void StartCutTreeFieldEffect(void)
 {
-    PlaySE(SE_W015);
+    PlaySE(SE_M_CUT);
     FieldEffectActiveListRemove(FLDEFF_USE_CUT_ON_TREE);
     EnableBothScriptContexts();
 }

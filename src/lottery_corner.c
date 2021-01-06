@@ -4,7 +4,6 @@
 #include "pokemon.h"
 #include "constants/items.h"
 #include "random.h"
-#include "constants/species.h"
 #include "string_util.h"
 #include "text.h"
 #include "pokemon_storage_system.h"
@@ -35,7 +34,7 @@ void SetRandomLotteryNumber(u16 i)
     u32 var = Random();
 
     while (--i != 0xFFFF)
-        var = var * 1103515245 + 12345;
+        var = ISO_RANDOMIZE2(var);
 
     SetLotteryNumber(var);
 }

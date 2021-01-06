@@ -70,7 +70,7 @@ static void CB2_HandleGivenWaldaPhrase(void)
     }
 
     StringCopy(gStringVar1, GetWaldaPhrasePtr());
-    gFieldCallback = FieldCallback_ReturnToEventScript2;
+    gFieldCallback = FieldCB_ContinueScriptHandleMusic;
     SetMainCallback2(CB2_ReturnToField);
 }
 
@@ -173,14 +173,12 @@ static void sub_81D9C90(u8 *array, s32 arg1, s32 arg2)
     {
         var1 = (array[0] & 0x80) >> 7;
 
-        var1++; var1--; // needed to match
-
         for (j = arg1 - 1; j >= 0; j--)
         {
-            var2 = array[j] & 0x80;
+            var2 = (array[j] & 0x80) >> 7;
             array[j] <<= 1;
             array[j] |= var1;
-            var1 = var2 >> 7;
+            var1 = var2;
         }
     }
 }

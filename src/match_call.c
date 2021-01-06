@@ -1,5 +1,5 @@
 #include "global.h"
-#include "alloc.h"
+#include "malloc.h"
 #include "battle.h"
 #include "battle_setup.h"
 #include "bg.h"
@@ -32,7 +32,6 @@
 #include "constants/maps.h"
 #include "constants/region_map_sections.h"
 #include "constants/songs.h"
-#include "constants/species.h"
 #include "constants/trainers.h"
 
 struct MatchCallState
@@ -965,9 +964,9 @@ static const struct MatchCallText *const sMatchCallGeneralTopics[] =
     sMatchCallBattlePyramidTexts,
 };
 
-extern const u8 gUnknown_082A5C9C[];
-extern const u8 gUnknown_082A5D2C[];
-extern const u8 gUnknown_082A633D[];
+extern const u8 gBirchDexRatingText_AreYouCurious[];
+extern const u8 gBirchDexRatingText_SoYouveSeenAndCaught[];
+extern const u8 gBirchDexRatingText_OnANationwideBasis[];
 
 void InitMatchCallCounters(void)
 {
@@ -1060,7 +1059,7 @@ static bool32 SelectMatchCallTrainer(void)
 static u32 GetNumRegisteredNPCs(void)
 {
     u32 i, count;
-    for (i = 0, count = 0; i < 64; i++)
+    for (i = 0, count = 0; i < REMATCH_SPECIAL_TRAINER_START; i++)
     {
         if (FlagGet(FLAG_MATCH_CALL_REGISTERED + i))
             count++;
@@ -1072,7 +1071,7 @@ static u32 GetNumRegisteredNPCs(void)
 static u32 GetActiveMatchCallTrainerId(u32 activeMatchCallId)
 {
     u32 i;
-    for (i = 0; i < 64; i++)
+    for (i = 0; i < REMATCH_SPECIAL_TRAINER_START; i++)
     {
         if (FlagGet(FLAG_MATCH_CALL_REGISTERED + i))
         {
@@ -1098,7 +1097,7 @@ bool32 TryStartMatchCall(void)
     return FALSE;
 }
 
-void StartMatchCallFromScript(u8 *message)
+void StartMatchCallFromScript(const u8 *message)
 {
     gMatchCallState.triggeredFromScript = 1;
     StartMatchCall();
@@ -1114,12 +1113,12 @@ static void StartMatchCall(void)
     if (!gMatchCallState.triggeredFromScript)
     {
         ScriptContext2_Enable();
-        FreezeEventObjects();
+        FreezeObjectEvents();
         sub_808B864();
         sub_808BCF4();
     }
 
-    PlaySE(SE_TOREEYE);
+    PlaySE(SE_POKENAV_CALL);
     CreateTask(ExecuteMatchCall, 1);
 }
 
@@ -1182,7 +1181,7 @@ static bool32 LoadMatchCallWindowGfx(u8 taskId)
         return FALSE;
     }
 
-    if (!decompress_and_copy_tile_data_to_vram(0, sPokeNavIconGfx, 0, 0x279, 0))
+    if (!DecompressAndCopyTileDataToVram(0, sPokeNavIconGfx, 0, 0x279, 0))
     {
         RemoveWindow(taskData[2]);
         DestroyTask(taskId);
@@ -1199,7 +1198,7 @@ static bool32 LoadMatchCallWindowGfx(u8 taskId)
 static bool32 MoveMatchCallWindowToVram(u8 taskId)
 {
     s16 *taskData = gTasks[taskId].data;
-    if (free_temp_tile_data_buffers_if_possible())
+    if (FreeTempTileDataBuffersIfPossible())
         return FALSE;
 
     PutWindowTilemap(taskData[2]);
@@ -1253,11 +1252,11 @@ static bool32 sub_81962D8(u8 taskId)
 static bool32 sub_8196330(u8 taskId)
 {
     s16 *taskData = gTasks[taskId].data;
-    if (!ExecuteMatchCallTextPrinter(taskData[2]) && !IsSEPlaying() && gMain.newKeys & (A_BUTTON | B_BUTTON))
+    if (!ExecuteMatchCallTextPrinter(taskData[2]) && !IsSEPlaying() && JOY_NEW(A_BUTTON | B_BUTTON))
     {
         FillWindowPixelBuffer(taskData[2], PIXEL_FILL(8));
         CopyWindowToVram(taskData[2], 2);
-        PlaySE(SE_TOREOFF);
+        PlaySE(SE_POKENAV_HANG_UP);
         return TRUE;
     }
 
@@ -1287,11 +1286,11 @@ static bool32 sub_81963F0(u8 taskId)
         ChangeBgY(0, 0, 0);
         if (!gMatchCallState.triggeredFromScript)
         {
-            sub_81973A4();
-            playerObjectId = GetEventObjectIdByLocalIdAndMap(EVENT_OBJ_ID_PLAYER, 0, 0);
-            EventObjectClearHeldMovementIfFinished(&gEventObjects[playerObjectId]);
-            sub_80D338C();
-            UnfreezeEventObjects();
+            LoadMessageBoxAndBorderGfx();
+            playerObjectId = GetObjectEventIdByLocalIdAndMap(OBJ_EVENT_ID_PLAYER, 0, 0);
+            ObjectEventClearHeldMovementIfFinished(&gObjectEvents[playerObjectId]);
+            ScriptMovement_UnfreezeObjectEvents();
+            UnfreezeObjectEvents();
             ScriptContext2_Disable();
         }
 
@@ -1346,7 +1345,7 @@ static void InitMatchCallTextPrinter(int windowId, const u8 *str)
 
 static bool32 ExecuteMatchCallTextPrinter(int windowId)
 {
-    if (gMain.heldKeys & A_BUTTON)
+    if (JOY_HELD(A_BUTTON))
         gTextFlags.canABSpeedUpPrint = 1;
     else
         gTextFlags.canABSpeedUpPrint = 0;
@@ -1384,7 +1383,7 @@ static u16 GetRematchTrainerLocation(int matchCallId)
 static u32 GetNumRematchTrainersFought(void)
 {
     u32 i, count;
-    for (i = 0, count = 0; i < 64; i++)
+    for (i = 0, count = 0; i < REMATCH_SPECIAL_TRAINER_START; i++)
     {
         if (HasTrainerBeenFought(gRematchTable[i].trainerIds[0]))
             count++;
@@ -1743,10 +1742,10 @@ static void PopulateBattleFrontierStreak(int matchCallId, u8 *destStr)
         i++;
     }
     
-    ConvertIntToDecimalStringN(destStr, gBattleFrontierStreakInfo.streak, 0, i);
+    ConvertIntToDecimalStringN(destStr, gBattleFrontierStreakInfo.streak, STR_CONV_MODE_LEFT_ALIGN, i);
 }
 
-static const u16 sBadgeFlags[] =
+static const u16 sBadgeFlags[NUM_BADGES] =
 {
     FLAG_BADGE01_GET,
     FLAG_BADGE02_GET,
@@ -1762,7 +1761,7 @@ static int GetNumOwnedBadges(void)
 {
     u32 i;
 
-    for (i = 0; i < 8; i++)
+    for (i = 0; i < NUM_BADGES; i++)
     {
         if (!FlagGet(sBadgeFlags[i]))
             break;
@@ -1818,10 +1817,13 @@ static u16 GetFrontierStreakInfo(u16 facilityId, u32 *topicTextId)
         }
         *topicTextId = 3;
         break;
+    #ifdef BUGFIX
+    case FRONTIER_FACILITY_PIKE:
+    #else
     case FRONTIER_FACILITY_FACTORY:
+    #endif
         for (i = 0; i < 2; i++)
         {
-            // BUG: should be looking at battle factory records.
             if (streak < gSaveBlock2Ptr->frontier.pikeRecordStreaks[i])
                 streak = gSaveBlock2Ptr->frontier.pikeRecordStreaks[i];
         }
@@ -1849,12 +1851,15 @@ static u16 GetFrontierStreakInfo(u16 facilityId, u32 *topicTextId)
         }
         *topicTextId = 2;
         break;
+    #ifdef BUGFIX
+    case FRONTIER_FACILITY_FACTORY:
+    #else
     case FRONTIER_FACILITY_PIKE:
+    #endif
         for (i = 0; i < 2; i++)
         {
             for (j = 0; j < 2; j++)
             {
-                // BUG: should be looking at battle pike records.
                 if (streak < gSaveBlock2Ptr->frontier.factoryRecordWinStreaks[i][j])
                     streak = gSaveBlock2Ptr->frontier.factoryRecordWinStreaks[i][j];
             }
@@ -1961,7 +1966,7 @@ static const u8 *const sBirchDexRatingTexts[] =
     gBirchDexRatingText_DexCompleted,
 };
 
-void sub_8197080(u8 *destStr)
+void BufferPokedexRatingForMatchCall(u8 *destStr)
 {
     int numSeen, numCaught;
     u8 *str;
@@ -1976,13 +1981,13 @@ void sub_8197080(u8 *destStr)
 
     numSeen = GetHoennPokedexCount(FLAG_GET_SEEN);
     numCaught = GetHoennPokedexCount(FLAG_GET_CAUGHT);
-    ConvertIntToDecimalStringN(gStringVar1, numSeen, 0, 3);
-    ConvertIntToDecimalStringN(gStringVar2, numCaught, 0, 3);
+    ConvertIntToDecimalStringN(gStringVar1, numSeen, STR_CONV_MODE_LEFT_ALIGN, 3);
+    ConvertIntToDecimalStringN(gStringVar2, numCaught, STR_CONV_MODE_LEFT_ALIGN, 3);
     dexRatingLevel = GetPokedexRatingLevel(numCaught);
-    str = StringCopy(buffer, gUnknown_082A5C9C);
+    str = StringCopy(buffer, gBirchDexRatingText_AreYouCurious);
     str[0] = CHAR_PROMPT_CLEAR;
     str++;
-    str = StringCopy(str, gUnknown_082A5D2C);
+    str = StringCopy(str, gBirchDexRatingText_SoYouveSeenAndCaught);
     str[0] = CHAR_PROMPT_CLEAR;
     str++;
     StringCopy(str, sBirchDexRatingTexts[dexRatingLevel]);
@@ -1994,9 +1999,9 @@ void sub_8197080(u8 *destStr)
         str++;
         numSeen = GetNationalPokedexCount(FLAG_GET_SEEN);
         numCaught = GetNationalPokedexCount(FLAG_GET_CAUGHT);
-        ConvertIntToDecimalStringN(gStringVar1, numSeen, 0, 3);
-        ConvertIntToDecimalStringN(gStringVar2, numCaught, 0, 3);
-        StringExpandPlaceholders(str, gUnknown_082A633D);
+        ConvertIntToDecimalStringN(gStringVar1, numSeen, STR_CONV_MODE_LEFT_ALIGN, 3);
+        ConvertIntToDecimalStringN(gStringVar2, numCaught, STR_CONV_MODE_LEFT_ALIGN, 3);
+        StringExpandPlaceholders(str, gBirchDexRatingText_OnANationwideBasis);
     }
 
     Free(buffer);

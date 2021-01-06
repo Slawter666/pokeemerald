@@ -27,6 +27,9 @@ typedef double f64;
 typedef u8  bool8;
 typedef u16 bool16;
 typedef u32 bool32;
+typedef vu8  vbool8;
+typedef vu16 vbool16;
+typedef vu32 vbool32;
 
 struct BgCnt
 {
@@ -67,6 +70,10 @@ struct OamData
              u16 paletteNum:4;
     /*0x06*/ u16 affineParam;
 };
+
+#define ST_OAM_HFLIP     0x08
+#define ST_OAM_VFLIP     0x10
+#define ST_OAM_MNUM_FLIP_MASK 0x18
 
 #define ST_OAM_OBJ_NORMAL 0
 #define ST_OAM_OBJ_BLEND  1

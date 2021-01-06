@@ -8,7 +8,7 @@
 #include "trig.h"
 #include "decompress.h"
 #include "palette.h"
-#include "alloc.h"
+#include "malloc.h"
 #include "strings.h"
 #include "sound.h"
 #include "constants/songs.h"
@@ -125,10 +125,10 @@ static const struct
 static const struct OamData sOamData_ScrollArrowIndicator =
 {
     .y = 0,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 0,
+    .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(16x16),
     .x = 0,
     .matrixNum = 0,
@@ -265,10 +265,10 @@ static const struct Subsprite sSubsprite_RedOutline8 =
 static const struct OamData sOamData_RedArrowCursor =
 {
     .y = 0,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 0,
+    .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(16x16),
     .x = 0,
     .matrixNum = 0,
@@ -335,11 +335,11 @@ s32 DoMysteryGiftListMenu(const struct WindowTemplate *windowTemplate, const str
         break;
     case 1:
         sMysteryGiftLinkMenu.currItemId = ListMenu_ProcessInput(sMysteryGiftLinkMenu.listTaskId);
-        if (gMain.newKeys & A_BUTTON)
+        if (JOY_NEW(A_BUTTON))
         {
             sMysteryGiftLinkMenu.state = 2;
         }
-        if (gMain.newKeys & B_BUTTON)
+        if (JOY_NEW(B_BUTTON))
         {
             sMysteryGiftLinkMenu.currItemId = LIST_CANCEL;
             sMysteryGiftLinkMenu.state = 2;
@@ -410,20 +410,20 @@ s32 ListMenu_ProcessInput(u8 listTaskId)
 {
     struct ListMenu *list = (void*) gTasks[listTaskId].data;
 
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         return list->template.items[list->scrollOffset + list->selectedRow].id;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return LIST_CANCEL;
     }
-    else if (gMain.newAndRepeatedKeys & DPAD_UP)
+    else if (JOY_REPEAT(DPAD_UP))
     {
         ListMenuChangeSelection(list, TRUE, 1, FALSE);
         return LIST_NOTHING_CHOSEN;
     }
-    else if (gMain.newAndRepeatedKeys & DPAD_DOWN)
+    else if (JOY_REPEAT(DPAD_DOWN))
     {
         ListMenuChangeSelection(list, TRUE, 1, TRUE);
         return LIST_NOTHING_CHOSEN;
@@ -439,10 +439,12 @@ s32 ListMenu_ProcessInput(u8 listTaskId)
             rightButton = FALSE;
             break;
         case LIST_MULTIPLE_SCROLL_DPAD:
+            // note: JOY_REPEAT won't match here
             leftButton = gMain.newAndRepeatedKeys & DPAD_LEFT;
             rightButton = gMain.newAndRepeatedKeys & DPAD_RIGHT;
             break;
         case LIST_MULTIPLE_SCROLL_L_R:
+            // same as above
             leftButton = gMain.newAndRepeatedKeys & L_BUTTON;
             rightButton = gMain.newAndRepeatedKeys & R_BUTTON;
             break;
@@ -1282,7 +1284,7 @@ void ListMenuSetUpRedOutlineCursorSpriteOamTable(u16 rowWidth, u16 rowHeight, st
         {
             subsprites[id] = sSubsprite_RedOutline3;
             subsprites[id].x = i - 120;
-            subsprites[id].y = 136;
+            subsprites[id].y = -120;
             id++;
 
             subsprites[id] = sSubsprite_RedOutline6;

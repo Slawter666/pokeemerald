@@ -18,7 +18,7 @@
 #include "international_string_util.h"
 #include "sound.h"
 #include "constants/songs.h"
-#include "alloc.h"
+#include "malloc.h"
 #include "gpu_regs.h"
 #include "constants/game_stat.h"
 #include "trainer_hill.h"
@@ -356,7 +356,7 @@ static void Task_CloseTrainerHillRecordsOnButton(u8 taskId)
 {
     struct Task *task = &gTasks[taskId];
 
-    if (gMain.newKeys & A_BUTTON || gMain.newKeys & B_BUTTON)
+    if (JOY_NEW(A_BUTTON) || JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
         task->func = Task_BeginPaletteFade;
@@ -485,7 +485,7 @@ static void CB2_ShowTrainerHillRecords(void)
         gMain.state++;
         break;
     case 2:
-        sTilemapBuffer = AllocZeroed(0x800);
+        sTilemapBuffer = AllocZeroed(BG_SCREEN_SIZE);
         ResetBgsAndClearDma3BusyFlags(0);
         InitBgsFromTemplates(0, sTrainerHillRecordsBgTemplates, ARRAY_COUNT(sTrainerHillRecordsBgTemplates));
         SetBgTilemapBuffer(3, sTilemapBuffer);
@@ -494,7 +494,7 @@ static void CB2_ShowTrainerHillRecords(void)
         break;
     case 3:
         LoadTrainerHillRecordsWindowGfx(3);
-        LoadPalette(stdpal_get(0), 0xF0, 0x20);
+        LoadPalette(GetTextWindowPalette(0), 0xF0, 0x20);
         gMain.state++;
         break;
     case 4:

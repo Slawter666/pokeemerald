@@ -50,10 +50,10 @@ static const struct SpritePalette sEvoSparkleSpritePals[] =
 static const struct OamData sOamData_EvoSparkle =
 {
     .y = 160,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 0,
+    .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(8x8),
     .x = 0,
     .matrixNum = 0,
@@ -141,7 +141,7 @@ static void CreatePreEvoSparkleSet1(u8 arg0)
         gSprites[spriteID].data[5] = 48;
         gSprites[spriteID].data[6] = arg0;
         gSprites[spriteID].data[7] = 0;
-        gSprites[spriteID].oam.affineMode = 1;
+        gSprites[spriteID].oam.affineMode = ST_OAM_AFFINE_NORMAL;
         gSprites[spriteID].oam.matrixNum = 31;
         gSprites[spriteID].callback = SpriteCB_PreEvoSparkleSet1;
     }
@@ -169,7 +169,7 @@ static void CreatePreEvoSparkleSet2(u8 arg0)
         gSprites[spriteID].data[5] = 8;
         gSprites[spriteID].data[6] = arg0;
         gSprites[spriteID].data[7] = 0;
-        gSprites[spriteID].oam.affineMode = 1;
+        gSprites[spriteID].oam.affineMode = ST_OAM_AFFINE_NORMAL;
         gSprites[spriteID].oam.matrixNum = 25;
         gSprites[spriteID].subpriority = 1;
         gSprites[spriteID].callback = SpriteCB_PreEvoSparkleSet2;
@@ -198,7 +198,7 @@ static void CreatePostEvoSparkleSet1(u8 arg0, u8 arg1)
         gSprites[spriteID].data[5] = 120;
         gSprites[spriteID].data[6] = arg0;
         gSprites[spriteID].data[7] = 0;
-        gSprites[spriteID].oam.affineMode = 1;
+        gSprites[spriteID].oam.affineMode = ST_OAM_AFFINE_NORMAL;
         gSprites[spriteID].oam.matrixNum = 31;
         gSprites[spriteID].subpriority = 1;
         gSprites[spriteID].callback = SpriteCB_PostEvoSparkleSet1;
@@ -243,7 +243,7 @@ static void CreatePostEvoSparkleSet2(u8 arg0)
         gSprites[spriteID].data[3] = 3 - (Random() % 7);
         gSprites[spriteID].data[5] = 48 + (Random() & 0x3F);
         gSprites[spriteID].data[7] = 0;
-        gSprites[spriteID].oam.affineMode = 1;
+        gSprites[spriteID].oam.affineMode = ST_OAM_AFFINE_NORMAL;
         gSprites[spriteID].oam.matrixNum = 31;
         gSprites[spriteID].subpriority = 20;
         gSprites[spriteID].callback = SpriteCB_PostEvoSparkleSet2;
@@ -271,7 +271,7 @@ static void EvoTask_BeginPreSet1_FadeAndPlaySE(u8 taskID)
     gTasks[taskID].tFrameCounter = 0;
     BeginNormalPaletteFade(3 << gTasks[taskID].data[1], 0xA, 0, 0x10, RGB_WHITE);
     gTasks[taskID].func = EvoTask_CreatePreEvoSparkleSet1;
-    PlaySE(SE_W025);
+    PlaySE(SE_M_MEGA_KICK);
 }
 
 static void EvoTask_CreatePreEvoSparkleSet1(u8 taskID)
@@ -311,7 +311,7 @@ static void EvoTask_BeginPreSparklesSet2(u8 taskID)
     SetEvoSparklesMatrices();
     gTasks[taskID].tFrameCounter = 0;
     gTasks[taskID].func = EvoTask_CreatePreEvoSparklesSet2;
-    PlaySE(SE_W062B);
+    PlaySE(SE_M_BUBBLE_BEAM2);
 }
 
 static void EvoTask_CreatePreEvoSparklesSet2(u8 taskID)
@@ -345,7 +345,7 @@ static void EvoTask_BeginPostSparklesSet1(u8 taskID)
     SetEvoSparklesMatrices();
     gTasks[taskID].tFrameCounter = 0;
     gTasks[taskID].func = EvoTask_CreatePostEvoSparklesSet1;
-    PlaySE(SE_REAPOKE);
+    PlaySE(SE_SHINY);
 }
 
 static void EvoTask_CreatePostEvoSparklesSet1(u8 taskID)
@@ -389,7 +389,7 @@ static void EvoTask_BeginPostSparklesSet2_AndFlash(u8 taskID)
     CpuSet(&gPlttBufferFaded[0x20], &gPlttBufferUnfaded[0x20], 0x30);
     BeginNormalPaletteFade(0xFFF9041C, 0, 0, 0x10, RGB_WHITE); // was 0xFFF9001C in R/S
     gTasks[taskID].func = EvoTask_CreatePostEvoSparklesSet2_AndFlash;
-    PlaySE(SE_W080);
+    PlaySE(SE_M_PETAL_DANCE);
 }
 
 static void EvoTask_CreatePostEvoSparklesSet2_AndFlash(u8 taskID)
@@ -437,7 +437,7 @@ static void EvoTask_BeginPostSparklesSet2_AndFlash_Trade(u8 taskID)
     CpuSet(&gPlttBufferFaded[0x20], &gPlttBufferUnfaded[0x20], 0x30);
     BeginNormalPaletteFade(0xFFF90400, 0, 0, 0x10, RGB_WHITE); // was 0xFFFF0001 in R/S
     gTasks[taskID].func = EvoTask_CreatePostEvoSparklesSet2_AndFlash_Trade;
-    PlaySE(SE_W080);
+    PlaySE(SE_M_PETAL_DANCE);
 }
 
 static void EvoTask_CreatePostEvoSparklesSet2_AndFlash_Trade(u8 taskID)
@@ -497,13 +497,13 @@ u8 sub_817C3A0(u8 preEvoSpriteID, u8 postEvoSpriteID)
     SetOamMatrix(31, toDiv / gTasks[taskID].data[4], 0, 0, toDiv / gTasks[taskID].data[4]);
 
     gSprites[preEvoSpriteID].callback = PokeEvoSprite_DummySpriteCB;
-    gSprites[preEvoSpriteID].oam.affineMode = 1;
+    gSprites[preEvoSpriteID].oam.affineMode = ST_OAM_AFFINE_NORMAL;
     gSprites[preEvoSpriteID].oam.matrixNum = 30;
     gSprites[preEvoSpriteID].invisible = FALSE;
     CpuSet(stack, &gPlttBufferFaded[0x100 + (gSprites[preEvoSpriteID].oam.paletteNum * 16)], 16);
 
     gSprites[postEvoSpriteID].callback = PokeEvoSprite_DummySpriteCB;
-    gSprites[postEvoSpriteID].oam.affineMode = 1;
+    gSprites[postEvoSpriteID].oam.affineMode = ST_OAM_AFFINE_NORMAL;
     gSprites[postEvoSpriteID].oam.matrixNum = 31;
     gSprites[postEvoSpriteID].invisible = FALSE;
     CpuSet(stack, &gPlttBufferFaded[0x100 + (gSprites[postEvoSpriteID].oam.paletteNum * 16)], 16);
@@ -587,11 +587,11 @@ static void sub_817C560(u8 taskID)
 
 static void PreEvoInvisible_PostEvoVisible_KillTask(u8 taskID)
 {
-    gSprites[gTasks[taskID].tPreEvoSpriteID].oam.affineMode = 0;
+    gSprites[gTasks[taskID].tPreEvoSpriteID].oam.affineMode = ST_OAM_AFFINE_OFF;
     gSprites[gTasks[taskID].tPreEvoSpriteID].oam.matrixNum = 0;
     gSprites[gTasks[taskID].tPreEvoSpriteID].invisible = TRUE;
 
-    gSprites[gTasks[taskID].tPostEvoSpriteID].oam.affineMode = 0;
+    gSprites[gTasks[taskID].tPostEvoSpriteID].oam.affineMode = ST_OAM_AFFINE_OFF;
     gSprites[gTasks[taskID].tPostEvoSpriteID].oam.matrixNum = 0;
     gSprites[gTasks[taskID].tPostEvoSpriteID].invisible = FALSE;
 
@@ -600,11 +600,11 @@ static void PreEvoInvisible_PostEvoVisible_KillTask(u8 taskID)
 
 static void PreEvoVisible_PostEvoInvisible_KillTask(u8 taskID)
 {
-    gSprites[gTasks[taskID].tPreEvoSpriteID].oam.affineMode = 0;
+    gSprites[gTasks[taskID].tPreEvoSpriteID].oam.affineMode = ST_OAM_AFFINE_OFF;
     gSprites[gTasks[taskID].tPreEvoSpriteID].oam.matrixNum = 0;
     gSprites[gTasks[taskID].tPreEvoSpriteID].invisible = FALSE;
 
-    gSprites[gTasks[taskID].tPostEvoSpriteID].oam.affineMode = 0;
+    gSprites[gTasks[taskID].tPostEvoSpriteID].oam.affineMode = ST_OAM_AFFINE_OFF;
     gSprites[gTasks[taskID].tPostEvoSpriteID].oam.matrixNum = 0;
     gSprites[gTasks[taskID].tPostEvoSpriteID].invisible = TRUE;
 

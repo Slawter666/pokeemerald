@@ -1,17 +1,19 @@
 #ifndef POKEEMERALD_MON_MARKINGS_H
 #define POKEEMERALD_MON_MARKINGS_H
 
+#define NUM_MON_MARKINGS 4
+
 struct PokemonMarkMenu
 {
     /*0x0000*/ u16 baseTileTag;
     /*0x0002*/ u16 basePaletteTag;
     /*0x0004*/ u8 markings; // bit flags
     /*0x0005*/ s8 cursorPos;
-    /*0x0006*/ bool8 markingsArray[4];
+    /*0x0006*/ bool8 markingsArray[NUM_MON_MARKINGS];
     /*0x000A*/ u8 cursorBaseY;
     /*0x000B*/ bool8 spriteSheetLoadRequired;
     /*0x000C*/ struct Sprite *menuWindowSprites[2]; // upper and lower halves of menu window
-    /*0x0014*/ struct Sprite *menuMarkingSprites[4];
+    /*0x0014*/ struct Sprite *menuMarkingSprites[NUM_MON_MARKINGS];
     /*0x0024*/ struct Sprite *unkSprite;
     /*0x0028*/ struct Sprite *menuTextSprite;
     /*0x002C*/ const u8 *frameTiles;
@@ -27,8 +29,8 @@ bool8 sub_811F960(void);
 void sub_811FA90(void);
 void sub_811FAA4(u8 markings, s16 x, s16 y);
 void sub_811FAF8(void);
-bool8 sub_811FBA4(void);
-struct Sprite *sub_811FF94(u16 tileTag, u16 paletteTag, const u16 *palette);
+bool8 MonMarkingsMenuHandleInput(void);
+struct Sprite *CreateMonMarkingsSpriteWithPal(u16 tileTag, u16 paletteTag, const u16 *palette);
 struct Sprite *sub_811FFB4(u16 tileTag, u16 paletteTag, const u16 *palette);
 void sub_8120084(u8 markings, void *dest);
 

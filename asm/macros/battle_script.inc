@@ -391,11 +391,11 @@
 	.byte 0x47
 	.endm
 
-	.macro playstatchangeanimation battler:req, param1:req, param2:req
+	.macro playstatchangeanimation battler:req, stats:req, statchange:req
 	.byte 0x48
 	.byte \battler
-	.byte \param1
-	.byte \param2
+	.byte \stats
+	.byte \statchange
 	.endm
 
 	.macro moveend param0:req, param1:req
@@ -738,10 +738,10 @@
 	.byte 0x88
 	.endm
 
-	.macro statbuffchange param0:req, param1:req
+	.macro statbuffchange flags:req, jumpptr:req
 	.byte 0x89
-	.byte \param0
-	.4byte \param1
+	.byte \flags
+	.4byte \jumpptr
 	.endm
 
 	.macro normalisebuffs
@@ -1263,11 +1263,11 @@
 	various \battler, VARIOUS_GET_MOVE_TARGET
 	.endm
 	
-	.macro various4 battler:req
-	various \battler, 4
+	.macro getbattlerfainted battler:req
+	various \battler, VARIOUS_GET_BATTLER_FAINTED
 	.endm
 	
-	.macro resetintrimidatetracebits battler:req
+	.macro resetintimidatetracebits battler:req
 	various \battler, VARIOUS_RESET_INTIMIDATE_TRACE_BITS
 	.endm
 	
@@ -1279,8 +1279,8 @@
 	various \battler, 7
 	.endm
 	
-	.macro various8 battler:req
-	various \battler, 8
+	.macro palaceflavortext battler:req
+	various \battler, VARIOUS_PALACE_FLAVOR_TEXT
 	.endm
 	
 	.macro arenajudgmentwindow
@@ -1365,11 +1365,11 @@
 	.endm
 	
 	.macro chosenstatus1animation battler:req, status:req
-	chosenstatusanimation \battler 0x0 \status
+	chosenstatusanimation \battler, 0x0, \status
 	.endm
 	
 	.macro chosenstatus2animation battler:req, status:req
-	chosenstatusanimation \battler 0x1 \status
+	chosenstatusanimation \battler, 0x1, \status
 	.endm
 	
 	.macro sethword dst:req, value:req

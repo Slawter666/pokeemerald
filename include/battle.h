@@ -11,6 +11,7 @@
 #include "battle_gfx_sfx_util.h"
 #include "battle_util2.h"
 #include "battle_bg.h"
+#include "pokeball.h"
 
 #define GET_BATTLER_POSITION(battler)     (gBattlerPositions[battler])
 #define GET_BATTLER_SIDE(battler)         (GetBattlerPosition(battler) & BIT_SIDE)
@@ -37,7 +38,6 @@
 #define B_ACTION_NONE                   0xFF
 
 #define MAX_TRAINER_ITEMS 4
-#define MAX_MON_MOVES 4
 
 // array entries for battle communication
 #define MULTIUSE_STATE          0x0
@@ -133,14 +133,14 @@ struct ProtectStruct
 
 struct SpecialStatus
 {
-    u8 statLowered:1;
-    u8 lightningRodRedirected:1;
-    u8 restoredBattlerSprite: 1;
-    u8 intimidatedMon:1;
-    u8 traced:1;
-    u8 ppNotAffectedByPressure:1;
-    u8 flag40:1;
-    u8 focusBanded:1;
+    u32 statLowered:1;
+    u32 lightningRodRedirected:1;
+    u32 restoredBattlerSprite: 1;
+    u32 intimidatedMon:1;
+    u32 traced:1;
+    u32 ppNotAffectedByPressure:1;
+    u32 flag40:1;
+    u32 focusBanded:1;
     s32 dmg;
     s32 physicalDmg;
     s32 specialDmg;
@@ -180,19 +180,19 @@ struct AI_ThinkingStruct
     u8 aiState;
     u8 movesetIndex;
     u16 moveConsidered;
-    s8 score[4];
+    s8 score[MAX_MON_MOVES];
     u32 funcResult;
     u32 aiFlags;
     u8 aiAction;
     u8 aiLogicId;
     u8 filler12[6];
-    u8 simulatedRNG[4];
+    u8 simulatedRNG[MAX_MON_MOVES];
 };
 
 struct UsedMoves
 {
-    u16 moves[MAX_BATTLERS_COUNT];
-    u16 unknown[MAX_BATTLERS_COUNT];
+    u16 moves[MAX_MON_MOVES];
+    u16 unknown[MAX_MON_MOVES];
 };
 
 struct BattleHistory
@@ -255,8 +255,8 @@ struct BattleResults
     u16 playerMon2Species;    // 0x26
     u16 caughtMonSpecies;     // 0x28
     u8 caughtMonNick[POKEMON_NAME_LENGTH + 1];     // 0x2A
-    u8 filler35[1];           // 0x35
-    u8 catchAttempts[11];     // 0x36
+    u8 filler35;           // 0x35
+    u8 catchAttempts[POKEBALL_COUNT - 1];     // 0x36 Doesn't include Master ball
 };
 
 struct BattleTv_Side
@@ -391,7 +391,7 @@ struct BattleStruct
     u8 expGetterBattlerId;
     u8 unused_5;
     u8 field_91; // related to gAbsentBattlerFlags, possibly absent flags turn ago?
-    u8 field_92; // battle palace related
+    u8 palaceFlags; // First 4 bits are "is < 50% HP and not asleep" for each battler, last 4 bits are selected moves to pass to AI
     u8 field_93; // related to choosing pokemon?
     u8 wallyBattleState;
     u8 wallyMovesState;
@@ -479,7 +479,7 @@ struct BattleScripting
     u8 animArg1;
     u8 animArg2;
     u16 tripleKickPower;
-    u8 atk49_state;
+    u8 moveendState;
     u8 battlerWithAbility;
     u8 multihitMoveEffect;
     u8 battler;
@@ -487,14 +487,14 @@ struct BattleScripting
     u8 animTargetsHit;
     u8 statChanger;
     bool8 statAnimPlayed;
-    u8 atk23_state;
+    u8 getexpState;
     u8 battleStyle;
-    u8 atk6C_state;
+    u8 drawlvlupboxState;
     u8 learnMoveState;
     u8 field_20;
     u8 reshowMainState;
     u8 reshowHelperState;
-    u8 field_23;
+    u8 levelUpHP;
     u8 windowsType; // 0 - normal, 1 - battle arena
     u8 multiplayerId;
     u8 specialTrainerBattleType;
@@ -524,14 +524,14 @@ struct BattleAnimationInfo
     u8 field_7;
     u8 ballThrowCaseId;
     u8 field_9_x1:1;
-    u8 field_9_x2:1;
+    u8 wildMonInvisible:1;
     u8 field_9_x1C:3;
     u8 field_9_x20:1;
     u8 field_9_x40:1;
     u8 field_9_x80:1;
-    u8 field_A;
+    u8 numBallParticles;
     u8 field_B;
-    s16 field_C;
+    s16 ballSubpx;
     u8 field_E;
     u8 field_F;
 };
@@ -545,8 +545,8 @@ struct BattleHealthboxInfo
     u8 statusAnimActive:1; // x10
     u8 animFromTableActive:1; // x20
     u8 specialAnimActive:1; // x40
-    u8 flag_x80:1;
-    u8 field_1_x1:1;
+    u8 triedShinyMonAnim:1;
+    u8 finishedShinyMonAnim:1;
     u8 field_1_x1E:4;
     u8 field_1_x20:1;
     u8 field_1_x40:1;
@@ -585,13 +585,17 @@ struct BattleSpriteData
 struct MonSpritesGfx
 {
     void* firstDecompressed; // ptr to the decompressed sprite of the first pokemon
-    void* sprites[4];
+    union
+    {
+	void* ptr[4];
+	u8* byte[4];
+    } sprites;
     struct SpriteTemplate templates[4];
     struct SpriteFrameImage field_74[4][4];
     u8 field_F4[0x80];
     u8 *barFontGfx;
     void *field_178;
-    u16 *field_17C;
+    u16 *buffer;
 };
 
 // All battle variables are declared in battle_main.c

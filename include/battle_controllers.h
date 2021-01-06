@@ -85,8 +85,8 @@ enum
 
 struct UnusedControllerStruct
 {
-    u8 field_0:7;
-    u8 flag_x80:1;
+    u8 unk:7;
+    u8 flag:1;
 };
 
 struct HpAndStatus
@@ -97,16 +97,16 @@ struct HpAndStatus
 
 struct MovePpInfo
 {
-    u16 moves[4];
-    u8 pp[4];
+    u16 moves[MAX_MON_MOVES];
+    u8 pp[MAX_MON_MOVES];
     u8 ppBonuses;
 };
 
 struct ChooseMoveStruct
 {
-    u16 moves[4];
-    u8 currentPp[4];
-    u8 maxPp[4];
+    u16 moves[MAX_MON_MOVES];
+    u8 currentPp[MAX_MON_MOVES];
+    u8 maxPp[MAX_MON_MOVES];
     u16 species;
     u8 monType1;
     u8 monType2;
@@ -145,19 +145,19 @@ enum
     CONTROLLER_STATUSXOR,
     CONTROLLER_DATATRANSFER,
     CONTROLLER_DMA3TRANSFER,
-    CONTROLLER_31,
+    CONTROLLER_PLAYBGM,
     CONTROLLER_32,
     CONTROLLER_TWORETURNVALUES,
     CONTROLLER_CHOSENMONRETURNVALUE,
     CONTROLLER_ONERETURNVALUE,
     CONTROLLER_ONERETURNVALUE_DUPLICATE,
-    CONTROLLER_37,
-    CONTROLLER_38,
-    CONTROLLER_39,
-    CONTROLLER_40,
+    CONTROLLER_CLEARUNKVAR,
+    CONTROLLER_SETUNKVAR,
+    CONTROLLER_CLEARUNKFLAG,
+    CONTROLLER_TOGGLEUNKFLAG,
     CONTROLLER_HITANIMATION,
     CONTROLLER_42,
-    CONTROLLER_EFFECTIVENESSSOUND,
+    CONTROLLER_PLAYSE,
     CONTROLLER_PLAYFANFAREORBGM,
     CONTROLLER_FAINTINGCRY,
     CONTROLLER_INTROSLIDE,
@@ -175,7 +175,7 @@ enum
     CONTROLLER_CMDS_COUNT
 };
 
-extern struct UnusedControllerStruct gUnknown_02022D0C;
+extern struct UnusedControllerStruct gUnusedControllerStruct;
 
 // general functions
 void HandleLinkBattleSetup(void);
@@ -222,10 +222,10 @@ void BtlController_EmitTwoReturnValues(u8 bufferId, u8 arg1, u16 arg2);
 void BtlController_EmitChosenMonReturnValue(u8 bufferId, u8 b, u8 *c);
 void BtlController_EmitOneReturnValue(u8 bufferId, u16 arg1);
 void BtlController_EmitOneReturnValue_Duplicate(u8 bufferId, u16 b);
-void BtlController_EmitCmd37(u8 bufferId); // unused
-void BtlController_EmitCmd38(u8 bufferId, u8 b); // unused
-void BtlController_EmitCmd39(u8 bufferId); // unused
-void BtlController_EmitCmd40(u8 bufferId); // unused
+void BtlController_EmitClearUnkVar(u8 bufferId); // unused
+void BtlController_EmitSetUnkVar(u8 bufferId, u8 b); // unused
+void BtlController_EmitClearUnkFlag(u8 bufferId); // unused
+void BtlController_EmitToggleUnkFlag(u8 bufferId); // unused
 void BtlController_EmitHitAnimation(u8 bufferId);
 void BtlController_EmitCmd42(u8 bufferId);
 void BtlController_EmitPlaySE(u8 bufferId, u16 songId);
@@ -248,8 +248,8 @@ void nullsub_21(void);
 void PlayerHandleGetRawMonData(void);
 void sub_80587B0(void);
 void sub_805CC00(struct Sprite *sprite);
-void SetCB2ToReshowScreenAfterMenu(void);
-void SetCB2ToReshowScreenAfterMenu2(void);
+void CB2_SetUpReshowBattleScreenAfterMenu(void);
+void CB2_SetUpReshowBattleScreenAfterMenu2(void);
 void c3_0802FDF4(u8 taskId);
 void ActionSelectionCreateCursorAt(u8 cursorPos, u8 unused);
 void ActionSelectionDestroyCursorAt(u8 cursorPos);

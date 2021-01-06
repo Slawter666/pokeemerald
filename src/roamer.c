@@ -4,7 +4,6 @@
 #include "random.h"
 #include "roamer.h"
 #include "constants/maps.h"
-#include "constants/species.h"
 
 enum
 {
@@ -67,7 +66,7 @@ static void CreateInitialRoamerMon(bool16 createLatios)
     else
         (&gSaveBlock1Ptr->roamer)->species = SPECIES_LATIOS;
 
-    CreateMon(&gEnemyParty[0], (&gSaveBlock1Ptr->roamer)->species, 40, 0x20, 0, 0, 0, 0);
+    CreateMon(&gEnemyParty[0], (&gSaveBlock1Ptr->roamer)->species, 40, 0x20, 0, 0, OT_ID_PLAYER_ID, 0);
     (&gSaveBlock1Ptr->roamer)->level = 40;
     (&gSaveBlock1Ptr->roamer)->status = 0;
     (&gSaveBlock1Ptr->roamer)->active = TRUE;

@@ -48,6 +48,13 @@ enum
     WIN_OPTIONS
 };
 
+#define YPOS_TEXTSPEED    (MENUITEM_TEXTSPEED * 16)
+#define YPOS_BATTLESCENE  (MENUITEM_BATTLESCENE * 16)
+#define YPOS_BATTLESTYLE  (MENUITEM_BATTLESTYLE * 16)
+#define YPOS_SOUND        (MENUITEM_SOUND * 16)
+#define YPOS_BUTTONMODE   (MENUITEM_BUTTONMODE * 16)
+#define YPOS_FRAMETYPE    (MENUITEM_FRAMETYPE * 16)
+
 // this file's functions
 static void Task_OptionMenuFadeIn(u8 taskId);
 static void Task_OptionMenuProcessInput(u8 taskId);
@@ -70,23 +77,21 @@ static void DrawTextOption(void);
 static void DrawOptionMenuTexts(void);
 static void sub_80BB154(void);
 
-// EWRAM vars
 EWRAM_DATA static bool8 sArrowPressed = FALSE;
 
-// const rom data
-static const u16 sUnknown_0855C604[] = INCBIN_U16("graphics/misc/option_menu_text.gbapal");
+static const u16 sOptionMenuText_Pal[] = INCBIN_U16("graphics/misc/option_menu_text.gbapal");
 // note: this is only used in the Japanese release
 static const u8 sEqualSignGfx[] = INCBIN_U8("graphics/misc/option_menu_equals_sign.4bpp");
 
 static const u8 *const sOptionMenuItemsNames[MENUITEM_COUNT] =
 {
-    gText_TextSpeed,
-    gText_BattleScene,
-    gText_BattleStyle,
-    gText_Sound,
-    gText_ButtonMode,
-    gText_Frame,
-    gText_OptionMenuCancel,
+    [MENUITEM_TEXTSPEED]   = gText_TextSpeed,
+    [MENUITEM_BATTLESCENE] = gText_BattleScene,
+    [MENUITEM_BATTLESTYLE] = gText_BattleStyle,
+    [MENUITEM_SOUND]       = gText_Sound,
+    [MENUITEM_BUTTONMODE]  = gText_ButtonMode,
+    [MENUITEM_FRAMETYPE]   = gText_Frame,
+    [MENUITEM_CANCEL]      = gText_OptionMenuCancel,
 };
 
 static const struct WindowTemplate sOptionMenuWinTemplates[] =
@@ -134,7 +139,7 @@ static const struct BgTemplate sOptionMenuBgTemplates[] =
    }
 };
 
-static const u16 sUnknown_0855C6A0[] = {0x7E51};
+static const u16 sOptionMenuBg_Pal[] = {RGB(17, 18, 31)};
 
 // code
 static void MainCB2(void)
@@ -202,12 +207,12 @@ void CB2_InitOptionMenu(void)
         gMain.state++;
         break;
     case 4:
-        LoadPalette(sUnknown_0855C6A0, 0, sizeof(sUnknown_0855C6A0));
+        LoadPalette(sOptionMenuBg_Pal, 0, sizeof(sOptionMenuBg_Pal));
         LoadPalette(GetWindowFrameTilesPal(gSaveBlock2Ptr->optionsWindowFrameType)->pal, 0x70, 0x20);
         gMain.state++;
         break;
     case 5:
-        LoadPalette(sUnknown_0855C604, 0x10, sizeof(sUnknown_0855C604));
+        LoadPalette(sOptionMenuText_Pal, 16, sizeof(sOptionMenuText_Pal));
         gMain.state++;
         break;
     case 6:
@@ -266,26 +271,26 @@ static void Task_OptionMenuFadeIn(u8 taskId)
 
 static void Task_OptionMenuProcessInput(u8 taskId)
 {
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         if (gTasks[taskId].data[TD_MENUSELECTION] == MENUITEM_CANCEL)
             gTasks[taskId].func = Task_OptionMenuSave;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         gTasks[taskId].func = Task_OptionMenuSave;
     }
-    else if (gMain.newKeys & DPAD_UP)
+    else if (JOY_NEW(DPAD_UP))
     {
         if (gTasks[taskId].data[TD_MENUSELECTION] > 0)
             gTasks[taskId].data[TD_MENUSELECTION]--;
         else
-            gTasks[taskId].data[TD_MENUSELECTION] = 6;
+            gTasks[taskId].data[TD_MENUSELECTION] = MENUITEM_CANCEL;
         HighlightOptionMenuItem(gTasks[taskId].data[TD_MENUSELECTION]);
     }
-    else if (gMain.newKeys & DPAD_DOWN)
+    else if (JOY_NEW(DPAD_DOWN))
     {
-        if (gTasks[taskId].data[TD_MENUSELECTION] <= 5)
+        if (gTasks[taskId].data[TD_MENUSELECTION] < MENUITEM_CANCEL)
             gTasks[taskId].data[TD_MENUSELECTION]++;
         else
             gTasks[taskId].data[TD_MENUSELECTION] = 0;
@@ -400,7 +405,7 @@ static void DrawOptionMenuChoice(const u8 *text, u8 x, u8 y, u8 style)
 
 static u8 TextSpeed_ProcessInput(u8 selection)
 {
-    if (gMain.newKeys & DPAD_RIGHT)
+    if (JOY_NEW(DPAD_RIGHT))
     {
         if (selection <= 1)
             selection++;
@@ -409,7 +414,7 @@ static u8 TextSpeed_ProcessInput(u8 selection)
 
         sArrowPressed = TRUE;
     }
-    if (gMain.newKeys & DPAD_LEFT)
+    if (JOY_NEW(DPAD_LEFT))
     {
         if (selection != 0)
             selection--;
@@ -431,7 +436,7 @@ static void TextSpeed_DrawChoices(u8 selection)
     styles[2] = 0;
     styles[selection] = 1;
 
-    DrawOptionMenuChoice(gText_TextSpeedSlow, 104, 0, styles[0]);
+    DrawOptionMenuChoice(gText_TextSpeedSlow, 104, YPOS_TEXTSPEED, styles[0]);
 
     widthSlow = GetStringWidth(1, gText_TextSpeedSlow, 0);
     widthMid = GetStringWidth(1, gText_TextSpeedMid, 0);
@@ -439,14 +444,14 @@ static void TextSpeed_DrawChoices(u8 selection)
 
     widthMid -= 94;
     xMid = (widthSlow - widthMid - widthFast) / 2 + 104;
-    DrawOptionMenuChoice(gText_TextSpeedMid, xMid, 0, styles[1]);
+    DrawOptionMenuChoice(gText_TextSpeedMid, xMid, YPOS_TEXTSPEED, styles[1]);
 
-    DrawOptionMenuChoice(gText_TextSpeedFast, GetStringRightAlignXOffset(1, gText_TextSpeedFast, 198), 0, styles[2]);
+    DrawOptionMenuChoice(gText_TextSpeedFast, GetStringRightAlignXOffset(1, gText_TextSpeedFast, 198), YPOS_TEXTSPEED, styles[2]);
 }
 
 static u8 BattleScene_ProcessInput(u8 selection)
 {
-    if (gMain.newKeys & (DPAD_LEFT | DPAD_RIGHT))
+    if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT))
     {
         selection ^= 1;
         sArrowPressed = TRUE;
@@ -463,13 +468,13 @@ static void BattleScene_DrawChoices(u8 selection)
     styles[1] = 0;
     styles[selection] = 1;
 
-    DrawOptionMenuChoice(gText_BattleSceneOn, 104, 16, styles[0]);
-    DrawOptionMenuChoice(gText_BattleSceneOff, GetStringRightAlignXOffset(1, gText_BattleSceneOff, 198), 16, styles[1]);
+    DrawOptionMenuChoice(gText_BattleSceneOn, 104, YPOS_BATTLESCENE, styles[0]);
+    DrawOptionMenuChoice(gText_BattleSceneOff, GetStringRightAlignXOffset(1, gText_BattleSceneOff, 198), YPOS_BATTLESCENE, styles[1]);
 }
 
 static u8 BattleStyle_ProcessInput(u8 selection)
 {
-    if (gMain.newKeys & (DPAD_LEFT | DPAD_RIGHT))
+    if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT))
     {
         selection ^= 1;
         sArrowPressed = TRUE;
@@ -486,13 +491,13 @@ static void BattleStyle_DrawChoices(u8 selection)
     styles[1] = 0;
     styles[selection] = 1;
 
-    DrawOptionMenuChoice(gText_BattleStyleShift, 104, 32, styles[0]);
-    DrawOptionMenuChoice(gText_BattleStyleSet, GetStringRightAlignXOffset(1, gText_BattleStyleSet, 198), 32, styles[1]);
+    DrawOptionMenuChoice(gText_BattleStyleShift, 104, YPOS_BATTLESTYLE, styles[0]);
+    DrawOptionMenuChoice(gText_BattleStyleSet, GetStringRightAlignXOffset(1, gText_BattleStyleSet, 198), YPOS_BATTLESTYLE, styles[1]);
 }
 
 static u8 Sound_ProcessInput(u8 selection)
 {
-    if (gMain.newKeys & (DPAD_LEFT | DPAD_RIGHT))
+    if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT))
     {
         selection ^= 1;
         SetPokemonCryStereo(selection);
@@ -510,13 +515,13 @@ static void Sound_DrawChoices(u8 selection)
     styles[1] = 0;
     styles[selection] = 1;
 
-    DrawOptionMenuChoice(gText_SoundMono, 104, 48, styles[0]);
-    DrawOptionMenuChoice(gText_SoundStereo, GetStringRightAlignXOffset(1, gText_SoundStereo, 198), 48, styles[1]);
+    DrawOptionMenuChoice(gText_SoundMono, 104, YPOS_SOUND, styles[0]);
+    DrawOptionMenuChoice(gText_SoundStereo, GetStringRightAlignXOffset(1, gText_SoundStereo, 198), YPOS_SOUND, styles[1]);
 }
 
 static u8 FrameType_ProcessInput(u8 selection)
 {
-    if (gMain.newKeys & DPAD_RIGHT)
+    if (JOY_NEW(DPAD_RIGHT))
     {
         if (selection < WINDOW_FRAMES_COUNT - 1)
             selection++;
@@ -527,7 +532,7 @@ static u8 FrameType_ProcessInput(u8 selection)
         LoadPalette(GetWindowFrameTilesPal(selection)->pal, 0x70, 0x20);
         sArrowPressed = TRUE;
     }
-    if (gMain.newKeys & DPAD_LEFT)
+    if (JOY_NEW(DPAD_LEFT))
     {
         if (selection != 0)
             selection--;
@@ -568,13 +573,13 @@ static void FrameType_DrawChoices(u8 selection)
 
     text[i] = EOS;
 
-    DrawOptionMenuChoice(gText_FrameType, 104, 80, 0);
-    DrawOptionMenuChoice(text, 128, 80, 1);
+    DrawOptionMenuChoice(gText_FrameType, 104, YPOS_FRAMETYPE, 0);
+    DrawOptionMenuChoice(text, 128, YPOS_FRAMETYPE, 1);
 }
 
 static u8 ButtonMode_ProcessInput(u8 selection)
 {
-    if (gMain.newKeys & DPAD_RIGHT)
+    if (JOY_NEW(DPAD_RIGHT))
     {
         if (selection <= 1)
             selection++;
@@ -583,7 +588,7 @@ static u8 ButtonMode_ProcessInput(u8 selection)
 
         sArrowPressed = TRUE;
     }
-    if (gMain.newKeys & DPAD_LEFT)
+    if (JOY_NEW(DPAD_LEFT))
     {
         if (selection != 0)
             selection--;
@@ -605,7 +610,7 @@ static void ButtonMode_DrawChoices(u8 selection)
     styles[2] = 0;
     styles[selection] = 1;
 
-    DrawOptionMenuChoice(gText_ButtonTypeNormal, 104, 64, styles[0]);
+    DrawOptionMenuChoice(gText_ButtonTypeNormal, 104, YPOS_BUTTONMODE, styles[0]);
 
     widthNormal = GetStringWidth(1, gText_ButtonTypeNormal, 0);
     widthLR = GetStringWidth(1, gText_ButtonTypeLR, 0);
@@ -613,9 +618,9 @@ static void ButtonMode_DrawChoices(u8 selection)
 
     widthLR -= 94;
     xLR = (widthNormal - widthLR - widthLA) / 2 + 104;
-    DrawOptionMenuChoice(gText_ButtonTypeLR, xLR, 64, styles[1]);
+    DrawOptionMenuChoice(gText_ButtonTypeLR, xLR, YPOS_BUTTONMODE, styles[1]);
 
-    DrawOptionMenuChoice(gText_ButtonTypeLEqualsA, GetStringRightAlignXOffset(1, gText_ButtonTypeLEqualsA, 198), 64, styles[2]);
+    DrawOptionMenuChoice(gText_ButtonTypeLEqualsA, GetStringRightAlignXOffset(1, gText_ButtonTypeLEqualsA, 198), YPOS_BUTTONMODE, styles[2]);
 }
 
 static void DrawTextOption(void)

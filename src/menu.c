@@ -1,6 +1,7 @@
 #include "global.h"
-#include "alloc.h"
+#include "malloc.h"
 #include "bg.h"
+#include "blit.h"
 #include "dma3.h"
 #include "event_data.h"
 #include "graphics.h"
@@ -17,7 +18,6 @@
 #include "task.h"
 #include "text_window.h"
 #include "window.h"
-#include "constants/flags.h"
 #include "constants/songs.h"
 
 #define DLG_WINDOW_PALETTE_NUM 15
@@ -25,7 +25,7 @@
 #define STD_WINDOW_PALETTE_NUM 14
 #define STD_WINDOW_BASE_TILE_NUM 0x214
 
-struct MoveMenuInfoIcon
+struct MenuInfoIcon
 {
     u8 width;
     u8 height;
@@ -56,12 +56,18 @@ static EWRAM_DATA u8 sPaletteNum = 0;
 static EWRAM_DATA u8 sYesNoWindowId = 0;
 static EWRAM_DATA u8 sWindowId = 0;
 static EWRAM_DATA u16 sFiller = 0;  // needed to align
-static EWRAM_DATA bool8 gUnknown_0203CDA4[4] = {FALSE};
-static EWRAM_DATA u16 gUnknown_0203CDA8 = 0;
-static EWRAM_DATA void *gUnknown_0203CDAC[0x20] = {NULL};
+static EWRAM_DATA bool8 sScheduledBgCopiesToVram[4] = {FALSE};
+static EWRAM_DATA u16 sTempTileDataBufferIdx = 0;
+static EWRAM_DATA void *sTempTileDataBuffer[0x20] = {NULL};
 
 const u16 gUnknown_0860F074[] = INCBIN_U16("graphics/interface/860F074.gbapal");
-static const u8 gUnknown_0860F094[] = { 8, 4, 1 };
+
+static const u8 sTextSpeedFrameDelays[] = 
+{ 
+    [OPTIONS_TEXT_SPEED_SLOW] = 8, 
+    [OPTIONS_TEXT_SPEED_MID]  = 4, 
+    [OPTIONS_TEXT_SPEED_FAST] = 1 
+};
 
 static const struct WindowTemplate sStandardTextBox_WindowTemplates[] =
 {
@@ -89,37 +95,37 @@ static const struct WindowTemplate sYesNo_WindowTemplates =
 };
 
 const u16 gUnknown_0860F0B0[] = INCBIN_U16("graphics/interface/860F0B0.gbapal");
-const u8 gUnknown_0860F0D0[] = { 15, 1, 2 };
+const u8 sTextColors[] = { TEXT_DYNAMIC_COLOR_6, TEXT_COLOR_WHITE, TEXT_COLOR_DARK_GREY };
 
 // Table of move info icon offsets in graphics/interface_fr/menu.png
-const struct MoveMenuInfoIcon gMoveMenuInfoIcons[] =
+static const struct MenuInfoIcon sMenuInfoIcons[] =
 {   // { width, height, offset }
-    { 12, 12, 0x00 },       // Unused
-    { 32, 12, 0x20 },       // Normal icon
-    { 32, 12, 0x64 },       // Fight icon
-    { 32, 12, 0x60 },       // Flying icon
-    { 32, 12, 0x80 },       // Poison icon
-    { 32, 12, 0x48 },       // Ground icon
-    { 32, 12, 0x44 },       // Rock icon
-    { 32, 12, 0x6C },       // Bug icon
-    { 32, 12, 0x68 },       // Ghost icon
-    { 32, 12, 0x88 },       // Steel icon
-    { 32, 12, 0xA4 },       // ??? (Mystery) icon
-    { 32, 12, 0x24 },       // Fire icon
-    { 32, 12, 0x28 },       // Water icon
-    { 32, 12, 0x2C },       // Grass icon
-    { 32, 12, 0x40 },       // Electric icon
-    { 32, 12, 0x84 },       // Psychic icon
-    { 32, 12, 0x4C },       // Ice icon
-    { 32, 12, 0xA0 },       // Dragon icon
-    { 32, 12, 0x8C },       // Dark icon
-    { 42, 12, 0xA8 },       // -Type- icon
-    { 42, 12, 0xC0 },       // -Power- icon
-    { 42, 12, 0xC8 },       // -Accuracy- icon
-    { 42, 12, 0xE0 },       // -PP- icon
-    { 42, 12, 0xE8 },       // -Effect- icon
-    {  8,  8, 0xAE },       // Unused (Small white pokeball)
-    {  8,  8, 0xAF },       // Unused (Small dark pokeball)
+    { 12, 12, 0x00 },  // Unused
+    [TYPE_NORMAL + 1]   = { 32, 12, 0x20 },
+    [TYPE_FIGHTING + 1] = { 32, 12, 0x64 },
+    [TYPE_FLYING + 1]   = { 32, 12, 0x60 },
+    [TYPE_POISON + 1]   = { 32, 12, 0x80 },
+    [TYPE_GROUND + 1]   = { 32, 12, 0x48 },
+    [TYPE_ROCK + 1]     = { 32, 12, 0x44 },
+    [TYPE_BUG + 1]      = { 32, 12, 0x6C },
+    [TYPE_GHOST + 1]    = { 32, 12, 0x68 },
+    [TYPE_STEEL + 1]    = { 32, 12, 0x88 },
+    [TYPE_MYSTERY + 1]  = { 32, 12, 0xA4 },
+    [TYPE_FIRE + 1]     = { 32, 12, 0x24 },
+    [TYPE_WATER + 1]    = { 32, 12, 0x28 },
+    [TYPE_GRASS + 1]    = { 32, 12, 0x2C },
+    [TYPE_ELECTRIC + 1] = { 32, 12, 0x40 },
+    [TYPE_PSYCHIC + 1]  = { 32, 12, 0x84 },
+    [TYPE_ICE + 1]      = { 32, 12, 0x4C },
+    [TYPE_DRAGON + 1]   = { 32, 12, 0xA0 },
+    [TYPE_DARK + 1]     = { 32, 12, 0x8C },
+    [MENU_INFO_ICON_TYPE]      = { 42, 12, 0xA8 },
+    [MENU_INFO_ICON_POWER]     = { 42, 12, 0xC0 },
+    [MENU_INFO_ICON_ACCURACY]  = { 42, 12, 0xC8 },
+    [MENU_INFO_ICON_PP]        = { 42, 12, 0xE0 },
+    [MENU_INFO_ICON_EFFECT]    = { 42, 12, 0xE8 }, // Unused
+    [MENU_INFO_ICON_BALL_RED]  = {  8,  8, 0xAE }, // For placed decorations in Secret Base
+    [MENU_INFO_ICON_BALL_BLUE] = {  8,  8, 0xAF }, // For placed decorations in player's room
 };
 
 
@@ -147,12 +153,12 @@ void FreeAllOverworldWindowBuffers(void)
     FreeAllWindowBuffers();
 }
 
-void sub_8197200(void)
+void InitTextBoxGfxAndPrinters(void)
 {
     ChangeBgX(0, 0, 0);
     ChangeBgY(0, 0, 0);
     DeactivateAllTextPrinters();
-    sub_81973A4();
+    LoadMessageBoxAndBorderGfx();
 }
 
 u16 RunTextPrintersAndIsPrinter0Active(void)
@@ -202,7 +208,7 @@ void AddTextPrinterWithCustomSpeedForMessage(bool8 allowSkippingDelayWithButtonP
     AddTextPrinterParameterized2(0, 1, gStringVar4, speed, NULL, 2, 1, 3);
 }
 
-void sub_81973A4(void)
+void LoadMessageBoxAndBorderGfx(void)
 {
     LoadMessageBoxGfx(0, DLG_WINDOW_BASE_TILE_NUM, DLG_WINDOW_PALETTE_NUM * 0x10);
     LoadUserWindowBorderGfx(0, STD_WINDOW_BASE_TILE_NUM, STD_WINDOW_PALETTE_NUM * 0x10);
@@ -451,7 +457,7 @@ u16 sub_81978D0(u8 colorNum)
 
 void DisplayItemMessageOnField(u8 taskId, const u8 *string, TaskFunc callback)
 {
-    sub_81973A4();
+    LoadMessageBoxAndBorderGfx();
     DisplayMessageAndContinueTask(taskId, 0, DLG_WINDOW_BASE_TILE_NUM, DLG_WINDOW_PALETTE_NUM, 1, GetPlayerTextSpeedDelay(), string, callback);
     CopyWindowToVram(0, 3);
 }
@@ -479,7 +485,7 @@ u8 GetPlayerTextSpeedDelay(void)
     if (gSaveBlock2Ptr->optionsTextSpeed > OPTIONS_TEXT_SPEED_FAST)
         gSaveBlock2Ptr->optionsTextSpeed = OPTIONS_TEXT_SPEED_MID;
     speed = GetPlayerTextSpeed();
-    return gUnknown_0860F094[speed];
+    return sTextSpeedFrameDelays[speed];
 }
 
 u8 sub_81979C4(u8 a1)
@@ -818,7 +824,7 @@ void sub_8198180(const u8 *string, u8 a2, bool8 copyToVram)
                   0,
                   0xEC - (GetWindowAttribute(sWindowId, WINDOW_TILEMAP_LEFT) * 8) - a2 - width,
                   1,
-                  gUnknown_0860F0D0,
+                  sTextColors,
                   0,
                   string);
         if (copyToVram)
@@ -835,15 +841,15 @@ void sub_8198204(const u8 *string, const u8 *string2, u8 a3, u8 a4, bool8 copyTo
     {
         if (a3 != 0)
         {
-            color[0] = 0;
-            color[1] = 1;
-            color[2] = 2;
+            color[0] = TEXT_COLOR_TRANSPARENT;
+            color[1] = TEXT_COLOR_WHITE;
+            color[2] = TEXT_COLOR_DARK_GREY;
         }
         else
         {
-            color[0] = 15;
-            color[1] = 1;
-            color[2] = 2;
+            color[0] = TEXT_DYNAMIC_COLOR_6;
+            color[1] = TEXT_COLOR_WHITE;
+            color[2] = TEXT_COLOR_DARK_GREY;
         }
         PutWindowTilemap(sWindowId);
         FillWindowPixelBuffer(sWindowId, PIXEL_FILL(15));
@@ -975,23 +981,23 @@ u8 Menu_GetCursorPos(void)
 
 s8 Menu_ProcessInput(void)
 {
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         if (!sMenu.APressMuted)
             PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if (gMain.newKeys & DPAD_UP)
+    else if (JOY_NEW(DPAD_UP))
     {
         PlaySE(SE_SELECT);
         Menu_MoveCursor(-1);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_DOWN)
+    else if (JOY_NEW(DPAD_DOWN))
     {
         PlaySE(SE_SELECT);
         Menu_MoveCursor(1);
@@ -1005,23 +1011,23 @@ s8 Menu_ProcessInputNoWrap(void)
 {
     u8 oldPos = sMenu.cursorPos;
 
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         if (!sMenu.APressMuted)
             PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if (gMain.newKeys & DPAD_UP)
+    else if (JOY_NEW(DPAD_UP))
     {
         if (oldPos != Menu_MoveCursorNoWrapAround(-1))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_DOWN)
+    else if (JOY_NEW(DPAD_DOWN))
     {
         if (oldPos != Menu_MoveCursorNoWrapAround(1))
             PlaySE(SE_SELECT);
@@ -1033,23 +1039,23 @@ s8 Menu_ProcessInputNoWrap(void)
 
 s8 ProcessMenuInput_other(void)
 {
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         if (!sMenu.APressMuted)
             PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_UP)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_UP)
     {
         PlaySE(SE_SELECT);
         Menu_MoveCursor(-1);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_DOWN)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_DOWN)
     {
         PlaySE(SE_SELECT);
         Menu_MoveCursor(1);
@@ -1063,23 +1069,23 @@ s8 Menu_ProcessInputNoWrapAround_other(void)
 {
     u8 oldPos = sMenu.cursorPos;
 
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         if (!sMenu.APressMuted)
             PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_UP)
+    else if (JOY_REPEAT(DPAD_ANY) == DPAD_UP)
     {
         if (oldPos != Menu_MoveCursorNoWrapAround(-1))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_DOWN)
+    else if (JOY_REPEAT(DPAD_ANY) == DPAD_DOWN)
     {
         if (oldPos != Menu_MoveCursorNoWrapAround(1))
             PlaySE(SE_SELECT);
@@ -1293,10 +1299,12 @@ u8 sub_8198F58(u8 windowId, u8 fontId, u8 left, u8 top, u8 a4, u8 cursorHeight, 
     else
         sMenu.cursorPos = pos;
 
-    sub_8199134(0, 0);
+    // Why call this when it's not gonna move?
+    ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_NONE, MENU_CURSOR_DELTA_NONE);
     return sMenu.cursorPos;
 }
 
+// Unused
 u8 sub_8198FD4(u8 windowId, u8 fontId, u8 left, u8 top, u8 a4, u8 a5, u8 a6, u8 a7)
 {
     u8 cursorHeight = GetMenuCursorDimensionByFont(fontId, 1);
@@ -1327,40 +1335,28 @@ void sub_8199060(u8 oldCursorPos, u8 newCursorPos)
                       0);
 }
 
-u8 sub_8199134(s8 deltaX, s8 deltaY)
+u8 ChangeListMenuCursorPosition(s8 deltaX, s8 deltaY)
 {
     u8 oldPos = sMenu.cursorPos;
 
     if (deltaX != 0)
     {
         if ((sMenu.cursorPos % sMenu.columns) + deltaX < 0)
-        {
             sMenu.cursorPos += sMenu.columns - 1;
-        }
         else if ((sMenu.cursorPos % sMenu.columns) + deltaX >= sMenu.columns)
-        {
             sMenu.cursorPos = (sMenu.cursorPos / sMenu.columns) * sMenu.columns;
-        }
         else
-        {
             sMenu.cursorPos += deltaX;
-        }
     }
 
     if (deltaY != 0)
     {
         if ((sMenu.cursorPos / sMenu.columns) + deltaY < 0)
-        {
             sMenu.cursorPos += sMenu.columns * (sMenu.rows - 1);
-        }
         else if ((sMenu.cursorPos / sMenu.columns) + deltaY >= sMenu.rows)
-        {
             sMenu.cursorPos -= sMenu.columns * (sMenu.rows - 1);
-        }
         else
-        {
             sMenu.cursorPos += (sMenu.columns * deltaY);
-        }
     }
 
     if (sMenu.cursorPos > sMenu.maxCursorPos)
@@ -1375,7 +1371,7 @@ u8 sub_8199134(s8 deltaX, s8 deltaY)
     }
 }
 
-u8 sub_81991F8(s8 deltaX, s8 deltaY)
+u8 ChangeGridMenuCursorPosition(s8 deltaX, s8 deltaY)
 {
     u8 oldPos = sMenu.cursorPos;
 
@@ -1411,37 +1407,37 @@ u8 sub_81991F8(s8 deltaX, s8 deltaY)
 
 s8 sub_8199284(void)
 {
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if (gMain.newKeys & DPAD_UP)
+    else if (JOY_NEW(DPAD_UP))
     {
         PlaySE(SE_SELECT);
-        sub_8199134(0, -1);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_NONE, MENU_CURSOR_DELTA_UP);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_DOWN)
+    else if (JOY_NEW(DPAD_DOWN))
     {
         PlaySE(SE_SELECT);
-        sub_8199134(0, 1);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_NONE, MENU_CURSOR_DELTA_DOWN);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_LEFT || GetLRKeysState() == 1)
+    else if (JOY_NEW(DPAD_LEFT) || GetLRKeysPressed() == MENU_L_PRESSED)
     {
         PlaySE(SE_SELECT);
-        sub_8199134(-1, 0);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_LEFT, MENU_CURSOR_DELTA_NONE);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_RIGHT || GetLRKeysState() == 2)
+    else if (JOY_NEW(DPAD_RIGHT) || GetLRKeysPressed() == MENU_R_PRESSED)
     {
         PlaySE(SE_SELECT);
-        sub_8199134(1, 0);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_RIGHT, MENU_CURSOR_DELTA_NONE);
         return MENU_NOTHING_CHOSEN;
     }
 
@@ -1452,36 +1448,36 @@ s8 Menu_ProcessInputGridLayout(void)
 {
     u8 oldPos = sMenu.cursorPos;
 
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if (gMain.newKeys & DPAD_UP)
+    else if (JOY_NEW(DPAD_UP))
     {
-        if (oldPos != sub_81991F8(0, -1))
+        if (oldPos != ChangeGridMenuCursorPosition(0, -1))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_DOWN)
+    else if (JOY_NEW(DPAD_DOWN))
     {
-        if (oldPos != sub_81991F8(0, 1))
+        if (oldPos != ChangeGridMenuCursorPosition(0, 1))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_LEFT || GetLRKeysState() == 1)
+    else if (JOY_NEW(DPAD_LEFT) || GetLRKeysPressed() == MENU_L_PRESSED)
     {
-        if (oldPos != sub_81991F8(-1, 0))
+        if (oldPos != ChangeGridMenuCursorPosition(-1, 0))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if (gMain.newKeys & DPAD_RIGHT || GetLRKeysState() == 2)
+    else if (JOY_NEW(DPAD_RIGHT) || GetLRKeysPressed() == MENU_R_PRESSED)
     {
-        if (oldPos != sub_81991F8(1, 0))
+        if (oldPos != ChangeGridMenuCursorPosition(1, 0))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
@@ -1491,77 +1487,78 @@ s8 Menu_ProcessInputGridLayout(void)
 
 s8 sub_81993D8(void)
 {
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_UP)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_UP)
     {
         PlaySE(SE_SELECT);
-        sub_8199134(0, -1);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_NONE, MENU_CURSOR_DELTA_UP);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_DOWN)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_DOWN)
     {
         PlaySE(SE_SELECT);
-        sub_8199134(0, 1);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_NONE, MENU_CURSOR_DELTA_DOWN);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_LEFT || sub_812210C() == 1)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_LEFT || GetLRKeysPressedAndHeld() == MENU_L_PRESSED)
     {
         PlaySE(SE_SELECT);
-        sub_8199134(-1, 0);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_LEFT, MENU_CURSOR_DELTA_NONE);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_RIGHT || sub_812210C() == 2)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_RIGHT || GetLRKeysPressedAndHeld() == MENU_R_PRESSED)
     {
         PlaySE(SE_SELECT);
-        sub_8199134(1, 0);
+        ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_RIGHT, MENU_CURSOR_DELTA_NONE);
         return MENU_NOTHING_CHOSEN;
     }
 
     return MENU_NOTHING_CHOSEN;
 }
 
+//Unused
 s8 sub_8199484(void)
 {
     u8 oldPos = sMenu.cursorPos;
 
-    if (gMain.newKeys & A_BUTTON)
+    if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
         return sMenu.cursorPos;
     }
-    else if (gMain.newKeys & B_BUTTON)
+    else if (JOY_NEW(B_BUTTON))
     {
         return MENU_B_PRESSED;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_UP)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_UP)
     {
-        if (oldPos != sub_81991F8(0, -1))
+        if (oldPos != ChangeGridMenuCursorPosition(0, -1))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_DOWN)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_DOWN)
     {
-        if (oldPos != sub_81991F8(0, 1))
+        if (oldPos != ChangeGridMenuCursorPosition(0, 1))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_LEFT || sub_812210C() == 1)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_LEFT || GetLRKeysPressedAndHeld() == MENU_L_PRESSED)
     {
-        if (oldPos != sub_81991F8(-1, 0))
+        if (oldPos != ChangeGridMenuCursorPosition(-1, 0))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
-    else if ((gMain.newAndRepeatedKeys & DPAD_ANY) == DPAD_RIGHT || sub_812210C() == 2)
+    else if ((JOY_REPEAT(DPAD_ANY)) == DPAD_RIGHT || GetLRKeysPressedAndHeld() == MENU_R_PRESSED)
     {
-        if (oldPos != sub_81991F8(1, 0))
+        if (oldPos != ChangeGridMenuCursorPosition(1, 0))
             PlaySE(SE_SELECT);
         return MENU_NOTHING_CHOSEN;
     }
@@ -1726,67 +1723,68 @@ u8 sub_8199944(u8 windowId, u8 optionWidth, u8 columns, u8 rows, u8 initialCurso
     else
         sMenu.cursorPos = pos;
 
-    sub_8199134(0, 0);
+    // Why call this when it's not gonna move?
+    ChangeListMenuCursorPosition(MENU_CURSOR_DELTA_NONE, MENU_CURSOR_DELTA_NONE);
     return sMenu.cursorPos;
 }
 
-void clear_scheduled_bg_copies_to_vram(void)
+void ClearScheduledBgCopiesToVram(void)
 {
-    memset(gUnknown_0203CDA4, 0, sizeof(gUnknown_0203CDA4));
+    memset(sScheduledBgCopiesToVram, 0, sizeof(sScheduledBgCopiesToVram));
 }
 
-void schedule_bg_copy_tilemap_to_vram(u8 bgId)
+void ScheduleBgCopyTilemapToVram(u8 bgId)
 {
-    gUnknown_0203CDA4[bgId] = TRUE;
+    sScheduledBgCopiesToVram[bgId] = TRUE;
 }
 
-void do_scheduled_bg_tilemap_copies_to_vram(void)
+void DoScheduledBgTilemapCopiesToVram(void)
 {
-    if (gUnknown_0203CDA4[0] == TRUE)
+    if (sScheduledBgCopiesToVram[0] == TRUE)
     {
         CopyBgTilemapBufferToVram(0);
-        gUnknown_0203CDA4[0] = FALSE;
+        sScheduledBgCopiesToVram[0] = FALSE;
     }
-    if (gUnknown_0203CDA4[1] == TRUE)
+    if (sScheduledBgCopiesToVram[1] == TRUE)
     {
         CopyBgTilemapBufferToVram(1);
-        gUnknown_0203CDA4[1] = FALSE;
+        sScheduledBgCopiesToVram[1] = FALSE;
     }
-    if (gUnknown_0203CDA4[2] == TRUE)
+    if (sScheduledBgCopiesToVram[2] == TRUE)
     {
         CopyBgTilemapBufferToVram(2);
-        gUnknown_0203CDA4[2] = FALSE;
+        sScheduledBgCopiesToVram[2] = FALSE;
     }
-    if (gUnknown_0203CDA4[3] == TRUE)
+    if (sScheduledBgCopiesToVram[3] == TRUE)
     {
         CopyBgTilemapBufferToVram(3);
-        gUnknown_0203CDA4[3] = FALSE;
+        sScheduledBgCopiesToVram[3] = FALSE;
     }
 }
 
-void reset_temp_tile_data_buffers(void)
+void ResetTempTileDataBuffers(void)
 {
     int i;
-    for (i = 0; i < (s32)ARRAY_COUNT(gUnknown_0203CDAC); i++)
+    for (i = 0; i < (int)ARRAY_COUNT(sTempTileDataBuffer); i++)
     {
-        gUnknown_0203CDAC[i] = NULL;
+        sTempTileDataBuffer[i] = NULL;
     }
-    gUnknown_0203CDA8 = 0;
+    sTempTileDataBufferIdx = 0;
 }
 
-bool8 free_temp_tile_data_buffers_if_possible(void)
+bool8 FreeTempTileDataBuffersIfPossible(void)
 {
     int i;
 
     if (!IsDma3ManagerBusyWithBgCopy())
     {
-        if (gUnknown_0203CDA8)
+        if (sTempTileDataBufferIdx)
         {
-            for (i = 0; i < gUnknown_0203CDA8; i++)
+            for (i = 0; i < sTempTileDataBufferIdx; i++)
             {
-                FREE_AND_SET_NULL(gUnknown_0203CDAC[i]);
+                FREE_AND_SET_NULL(sTempTileDataBuffer[i]);
             }
-            gUnknown_0203CDA8 = 0;
+            sTempTileDataBufferIdx = 0;
         }
         return FALSE;
     }
@@ -1796,10 +1794,10 @@ bool8 free_temp_tile_data_buffers_if_possible(void)
     }
 }
 
-void *decompress_and_copy_tile_data_to_vram(u8 bgId, const void *src, u32 size, u16 offset, u8 mode)
+void *DecompressAndCopyTileDataToVram(u8 bgId, const void *src, u32 size, u16 offset, u8 mode)
 {
     u32 sizeOut;
-    if (gUnknown_0203CDA8 < ARRAY_COUNT(gUnknown_0203CDAC))
+    if (sTempTileDataBufferIdx < ARRAY_COUNT(sTempTileDataBuffer))
     {
         void *ptr = malloc_and_decompress(src, &sizeOut);
         if (!size)
@@ -1807,7 +1805,7 @@ void *decompress_and_copy_tile_data_to_vram(u8 bgId, const void *src, u32 size, 
         if (ptr)
         {
             copy_decompressed_tile_data_to_vram(bgId, ptr, size, offset, mode);
-            gUnknown_0203CDAC[gUnknown_0203CDA8++] = ptr;
+            sTempTileDataBuffer[sTempTileDataBufferIdx++] = ptr;
         }
         return ptr;
     }
@@ -1867,7 +1865,7 @@ u16 copy_decompressed_tile_data_to_vram(u8 bgId, const void *src, u16 size, u16 
     }
 }
 
-void sub_8199C30(u8 bgId, u8 left, u8 top, u8 width, u8 height, u8 palette)
+void SetBgTilemapPalette(u8 bgId, u8 left, u8 top, u8 width, u8 height, u8 palette)
 {
     u8 i;
     u8 j;
@@ -1882,7 +1880,7 @@ void sub_8199C30(u8 bgId, u8 left, u8 top, u8 width, u8 height, u8 palette)
     }
 }
 
-void sub_8199CBC(u8 bgId, u16 *dest, u8 left, u8 top, u8 width, u8 height)
+void CopyToBufferFromBgTilemap(u8 bgId, u16 *dest, u8 left, u8 top, u8 width, u8 height)
 {
     u8 i;
     u8 j;
@@ -2013,337 +2011,81 @@ void PrintPlayerNameOnWindow(u8 windowId, const u8 *src, u16 x, u16 y)
     AddTextPrinterParameterized(windowId, 1, gStringVar4, x, y, 0xFF, 0);
 }
 
-//Screw this function, it's long and unreferenced and ugh
-
-struct UnkStruct_819A080 {
-    u8 *unk00;
-    u16 unk04;
-    u16 unk06;
-};
-
-#ifdef NONMATCHING
-void sub_819A080(struct UnkStruct_819A080 *a0, struct UnkStruct_819A080 *a1, u16 a2, u16 a3, u16 a4, u16 a5, u16 a6, u16 a7)
+// Unused. Similar to BlitBitmapRect4Bit.
+void sub_819A080(const struct Bitmap *src, struct Bitmap *dst, u16 srcX, u16 srcY, u16 dstX, u16 dstY, u16 width, u16 height)
 {
-    // r3 = a3
-    // r4 = a5
-    // r1 = a6
-    // r5 = a7
-    // sp+00 = a0
-    // sp+04 = a1
-    // sp+08 = a2
-    // sp+0c = a4
-    int sp10 = a1->unk04 - a4 < a6 ? a1->unk04 - a4 + a2 : a6 + a2;
-    int sp14 = a0->unk06 - a5 < a7 ? a3 + a0->unk06 - a5 : a3 + a7;
-    int sp18 = (a0->unk04 + (a0->unk04 & 0x7)) / 8;
-    int sp1c = (a1->unk04 + (a1->unk04 & 0x7)) / 8;
-    int r12; // sp+20
-    int r8;  // sp+24
-    int r5;
-    int r6;
-    u16 r2;
+    int loopSrcY, loopDstY, loopSrcX, loopDstX, xEnd, yEnd, multiplierSrcY, multiplierDstY;
+    const u8 *pixelsSrc;
+    u8 *pixelsDst;
+    u16 toOrr;
 
-    for (r12 = a3, r8 = a5; r12 < sp14; r12++, r8++)
+    if (dst->width - dstX < width)
+        xEnd = dst->width - dstX + srcX;
+    else
+        xEnd = width + srcX;
+
+    if (dst->height - dstY < height)
+        yEnd = srcY + dst->height - dstY;
+    else
+        yEnd = srcY + height;
+
+    multiplierSrcY = (src->width + (src->width & 7)) >> 3;
+    multiplierDstY = (dst->width + (dst->width & 7)) >> 3;
+
+    for (loopSrcY = srcY, loopDstY = dstY; loopSrcY < yEnd; loopSrcY++, loopDstY++)
     {
-        for (r5 = a2, r6 = a4; a5 < sp10; a5++, a6++)
+        for (loopSrcX = srcX, loopDstX = dstX; loopSrcX < xEnd; loopSrcX++, loopDstX++)
         {
-            u8 *r3 = a0->unk00 + ((r5 >> 1) & 0x3) + ((r5 >> 3) << 5) + (((r12 >> 3) * sp18) << 5) + ((r12 & 0x7) << 2);
-            u8 *r4 = a1->unk00 + ((r6 >> 1) & 0x3) + ((r6 >> 3) << 5) + (((r8 >> 3) * sp1c) << 5) + ((r8 & 0x7) << 2);
-            if (((uintptr_t)r4) & 0x1)
+            pixelsSrc = src->pixels + ((loopSrcX >> 1) & 3) + ((loopSrcX >> 3) << 5) + (((loopSrcY >> 3) * multiplierSrcY) << 5) + ((u32)(loopSrcY << 0x1d) >> 0x1B);
+            pixelsDst = (void*) dst->pixels + ((loopDstX >> 1) & 3) + ((loopDstX >> 3) << 5) + ((( loopDstY >> 3) * multiplierDstY) << 5) + ((u32)(loopDstY << 0x1d) >> 0x1B);
+
+            if ((uintptr_t)pixelsDst & 0x1)
             {
-                u16 *r4_2 = (u16 *)(r4 - 1);
-                if (r6 & 0x1)
+                pixelsDst--;
+                if (loopDstX & 0x1)
                 {
-                    r2 = *r4_2 & 0x0fff;
-                    if (r5 & 0x1)
-                        *r4_2 = r2 | ((*r3 & 0xf0) << 8);
+                    toOrr = *(vu16*)pixelsDst;
+                    toOrr &= 0x0fff;
+                    if (loopSrcX & 0x1)
+                        toOrr |= ((*pixelsSrc & 0xf0) << 8);
                     else
-                        *r4_2 = r2 | ((*r3 & 0x0f) << 12);
+                        toOrr |= ((*pixelsSrc & 0x0f) << 12);
                 }
                 else
                 {
-                    r2 = *r4_2 * 0xf0ff;
-                    if (r5 & 0x1)
-                        *r4_2 = r2 | ((*r3 & 0xf0) << 4);
+                    toOrr = *(vu16*)pixelsDst;
+                    toOrr &= 0xf0ff;
+                    if (loopSrcX & 0x1)
+                        toOrr |= ((*pixelsSrc & 0xf0) << 4);
                     else
-                        *r4_2 = r2 | ((*r3 & 0x0f) << 8);
+                        toOrr |= ((*pixelsSrc & 0x0f) << 8);
                 }
             }
             else
             {
-                u16 *r4_2 = (u16 *)r4;
-                if (r6 & 1)
+                if (loopDstX & 1)
                 {
-                    r2 = *r4_2 & 0xff0f;
-                    if (r5 & 1)
-                        *r4_2 = r2 | ((*r3 & 0xf0) << 0);
+                    toOrr = *(vu16*)pixelsDst;
+                    toOrr &= 0xff0f;
+                    if (loopSrcX & 1)
+                        toOrr |= ((*pixelsSrc & 0xf0) << 0);
                     else
-                        *r4_2 = r2 | ((*r3 & 0x0f) << 4);
+                        toOrr |= ((*pixelsSrc & 0x0f) << 4);
                 }
                 else
                 {
-                    r2 = *r4_2 & 0xfff0;
-                    if (r5 & 1)
-                        *r4_2 = r2 | ((*r3 & 0xf0) >> 4);
+                    toOrr = *(vu16*)pixelsDst;
+                    toOrr &= 0xfff0;
+                    if (loopSrcX & 1)
+                        toOrr |= ((*pixelsSrc & 0xf0) >> 4);
                     else
-                        *r4_2 = r2 | ((*r3 & 0x0f) >> 0);
+                        toOrr |= ((*pixelsSrc & 0x0f) >> 0);
                 }
             }
+            *(vu16*)pixelsDst = toOrr;
         }
     }
 }
-#else
-NAKED
-void sub_819A080(struct UnkStruct_819A080 *a0, struct UnkStruct_819A080 *a1, u16 a2, u16 a3, u16 a4, u16 a5, u16 a6, u16 a7)
-{
-    asm("push {r4-r7,lr}\n\
-    mov r7, r10\n\
-    mov r6, r9\n\
-    mov r5, r8\n\
-    push {r5-r7}\n\
-    sub sp, #0x28\n\
-    str r0, [sp]\n\
-    str r1, [sp, #0x4]\n\
-    ldr r0, [sp, #0x48]\n\
-    ldr r4, [sp, #0x4C]\n\
-    ldr r1, [sp, #0x50]\n\
-    ldr r5, [sp, #0x54]\n\
-    lsl r2, #16\n\
-    lsr r2, #16\n\
-    str r2, [sp, #0x8]\n\
-    lsl r3, #16\n\
-    lsr r3, #16\n\
-    lsl r0, #16\n\
-    lsr r0, #16\n\
-    str r0, [sp, #0xC]\n\
-    lsl r4, #16\n\
-    lsr r4, #16\n\
-    lsl r1, #16\n\
-    lsr r1, #16\n\
-    lsl r5, #16\n\
-    lsr r5, #16\n\
-    ldr r2, [sp, #0x4]\n\
-    ldrh r0, [r2, #0x4]\n\
-    ldr r2, [sp, #0xC]\n\
-    sub r0, r2\n\
-    ldr r2, [sp, #0x8]\n\
-    add r2, r1, r2\n\
-    str r2, [sp, #0x10]\n\
-    cmp r0, r1\n\
-    bge _0819A0CC\n\
-    ldr r1, [sp, #0x8]\n\
-    add r0, r1\n\
-    str r0, [sp, #0x10]\n\
-_0819A0CC:\n\
-    ldr r2, [sp, #0x4]\n\
-    ldrh r1, [r2, #0x6]\n\
-    sub r0, r1, r4\n\
-    cmp r0, r5\n\
-    bge _0819A0DE\n\
-    add r0, r3, r1\n\
-    sub r0, r4\n\
-    str r0, [sp, #0x14]\n\
-    b _0819A0E2\n\
-_0819A0DE:\n\
-    add r5, r3, r5\n\
-    str r5, [sp, #0x14]\n\
-_0819A0E2:\n\
-    ldr r0, [sp]\n\
-    ldrh r1, [r0, #0x4]\n\
-    mov r2, #0x7\n\
-    add r0, r1, #0\n\
-    and r0, r2\n\
-    add r1, r0\n\
-    asr r1, #3\n\
-    str r1, [sp, #0x18]\n\
-    ldr r0, [sp, #0x4]\n\
-    ldrh r1, [r0, #0x4]\n\
-    add r0, r1, #0\n\
-    and r0, r2\n\
-    add r1, r0\n\
-    asr r1, #3\n\
-    str r1, [sp, #0x1C]\n\
-    mov r12, r3\n\
-    mov r8, r4\n\
-    ldr r1, [sp, #0x14]\n\
-    cmp r12, r1\n\
-    blt _0819A10C\n\
-    b _0819A24A\n\
-_0819A10C:\n\
-    ldr r5, [sp, #0x8]\n\
-    ldr r6, [sp, #0xC]\n\
-    mov r2, r12\n\
-    add r2, #0x1\n\
-    str r2, [sp, #0x20]\n\
-    mov r0, r8\n\
-    add r0, #0x1\n\
-    str r0, [sp, #0x24]\n\
-    ldr r1, [sp, #0x10]\n\
-    cmp r5, r1\n\
-    blt _0819A124\n\
-    b _0819A23A\n\
-_0819A124:\n\
-    mov r7, #0x1\n\
-    mov r2, #0xF0\n\
-    mov r10, r2\n\
-    mov r0, #0xF\n\
-    mov r9, r0\n\
-_0819A12E:\n\
-    asr r0, r5, #1\n\
-    mov r1, #0x3\n\
-    and r0, r1\n\
-    ldr r2, [sp]\n\
-    ldr r1, [r2]\n\
-    add r1, r0\n\
-    asr r0, r5, #3\n\
-    lsl r0, #5\n\
-    add r1, r0\n\
-    mov r2, r12\n\
-    asr r0, r2, #3\n\
-    ldr r2, [sp, #0x18]\n\
-    mul r0, r2\n\
-    lsl r0, #5\n\
-    add r1, r0\n\
-    mov r2, r12\n\
-    lsl r0, r2, #29\n\
-    lsr r0, #27\n\
-    add r3, r1, r0\n\
-    asr r0, r6, #1\n\
-    mov r1, #0x3\n\
-    and r0, r1\n\
-    ldr r2, [sp, #0x4]\n\
-    ldr r1, [r2]\n\
-    add r1, r0\n\
-    asr r0, r6, #3\n\
-    lsl r0, #5\n\
-    add r1, r0\n\
-    mov r2, r8\n\
-    asr r0, r2, #3\n\
-    ldr r2, [sp, #0x1C]\n\
-    mul r0, r2\n\
-    lsl r0, #5\n\
-    add r1, r0\n\
-    mov r2, r8\n\
-    lsl r0, r2, #29\n\
-    lsr r0, #27\n\
-    add r4, r1, r0\n\
-    add r0, r4, #0\n\
-    and r0, r7\n\
-    cmp r0, #0\n\
-    beq _0819A1DA\n\
-    sub r4, #0x1\n\
-    add r0, r6, #0\n\
-    and r0, r7\n\
-    cmp r0, #0\n\
-    beq _0819A1B2\n\
-    ldrh r0, [r4]\n\
-    ldr r2, =0x00000fff\n\
-    and r2, r0\n\
-    add r0, r5, #0\n\
-    and r0, r7\n\
-    cmp r0, #0\n\
-    beq _0819A1A8\n\
-    ldrb r1, [r3]\n\
-    mov r0, r10\n\
-    and r0, r1\n\
-    lsl r0, #8\n\
-    b _0819A22A\n\
-    .pool\n\
-_0819A1A8:\n\
-    ldrb r1, [r3]\n\
-    mov r0, r9\n\
-    and r0, r1\n\
-    lsl r0, #12\n\
-    b _0819A22A\n\
-_0819A1B2:\n\
-    ldrh r0, [r4]\n\
-    ldr r2, =0x0000f0ff\n\
-    and r2, r0\n\
-    add r0, r5, #0\n\
-    and r0, r7\n\
-    cmp r0, #0\n\
-    beq _0819A1D0\n\
-    ldrb r1, [r3]\n\
-    mov r0, r10\n\
-    and r0, r1\n\
-    lsl r0, #4\n\
-    b _0819A22A\n\
-    .pool\n\
-_0819A1D0:\n\
-    ldrb r1, [r3]\n\
-    mov r0, r9\n\
-    and r0, r1\n\
-    lsl r0, #8\n\
-    b _0819A22A\n\
-_0819A1DA:\n\
-    add r0, r6, #0\n\
-    and r0, r7\n\
-    cmp r0, #0\n\
-    beq _0819A206\n\
-    ldrh r0, [r4]\n\
-    ldr r2, =0x0000ff0f\n\
-    and r2, r0\n\
-    add r0, r5, #0\n\
-    and r0, r7\n\
-    cmp r0, #0\n\
-    beq _0819A1FC\n\
-    ldrb r1, [r3]\n\
-    mov r0, r10\n\
-    b _0819A228\n\
-    .pool\n\
-_0819A1FC:\n\
-    ldrb r1, [r3]\n\
-    mov r0, r9\n\
-    and r0, r1\n\
-    lsl r0, #4\n\
-    b _0819A22A\n\
-_0819A206:\n\
-    ldrh r0, [r4]\n\
-    ldr r2, =0x0000fff0\n\
-    and r2, r0\n\
-    add r0, r5, #0\n\
-    and r0, r7\n\
-    cmp r0, #0\n\
-    beq _0819A224\n\
-    ldrb r1, [r3]\n\
-    mov r0, r10\n\
-    and r0, r1\n\
-    lsr r0, #4\n\
-    b _0819A22A\n\
-    .pool\n\
-_0819A224:\n\
-    ldrb r1, [r3]\n\
-    mov r0, r9\n\
-_0819A228:\n\
-    and r0, r1\n\
-_0819A22A:\n\
-    orr r2, r0\n\
-    strh r2, [r4]\n\
-    add r5, #0x1\n\
-    add r6, #0x1\n\
-    ldr r0, [sp, #0x10]\n\
-    cmp r5, r0\n\
-    bge _0819A23A\n\
-    b _0819A12E\n\
-_0819A23A:\n\
-    ldr r1, [sp, #0x20]\n\
-    mov r12, r1\n\
-    ldr r2, [sp, #0x24]\n\
-    mov r8, r2\n\
-    ldr r0, [sp, #0x14]\n\
-    cmp r12, r0\n\
-    bge _0819A24A\n\
-    b _0819A10C\n\
-_0819A24A:\n\
-    add sp, #0x28\n\
-    pop {r3-r5}\n\
-    mov r8, r3\n\
-    mov r9, r4\n\
-    mov r10, r5\n\
-    pop {r4-r7}\n\
-    pop {r0}\n\
-    bx r0\n");
-}
-#endif
 
 void sub_819A25C(u8 palOffset, u16 speciesId)
 {
@@ -2355,7 +2097,7 @@ void sub_819A27C(u8 windowId, u16 speciesId, u32 personality, u16 x, u16 y)
     BlitBitmapToWindow(windowId, GetMonIconPtr(speciesId, personality, 1), x, y, 32, 32);
 }
 
-void sub_819A2BC(u8 palOffset, u8 palId)
+void ListMenuLoadStdPalAt(u8 palOffset, u8 palId)
 {
     const u16 *palette;
 
@@ -2376,12 +2118,12 @@ void sub_819A2BC(u8 palOffset, u8 palId)
     LoadPalette(palette, palOffset, 0x20);
 }
 
-void blit_move_info_icon(u8 windowId, u8 iconId, u16 x, u16 y)
+void BlitMenuInfoIcon(u8 windowId, u8 iconId, u16 x, u16 y)
 {
-    BlitBitmapRectToWindow(windowId, gFireRedMenuElements_Gfx + gMoveMenuInfoIcons[iconId].offset * 32, 0, 0, 128, 128, x, y, gMoveMenuInfoIcons[iconId].width, gMoveMenuInfoIcons[iconId].height);
+    BlitBitmapRectToWindow(windowId, gFireRedMenuElements_Gfx + sMenuInfoIcons[iconId].offset * 32, 0, 0, 128, 128, x, y, sMenuInfoIcons[iconId].width, sMenuInfoIcons[iconId].height);
 }
 
-void sub_819A344(u8 a0, u8 *dest, u8 color)
+void BufferSaveMenuText(u8 textId, u8 *dest, u8 color)
 {
     s32 curFlag;
     s32 flagCount;
@@ -2395,28 +2137,28 @@ void sub_819A344(u8 a0, u8 *dest, u8 color)
     *(string++) = EXT_CTRL_CODE_SHADOW;
     *(string++) = color + 1;
 
-    switch (a0)
+    switch (textId)
     {
-        case 0:
+        case SAVE_MENU_NAME:
             StringCopy(string, gSaveBlock2Ptr->playerName);
             break;
-        case 1:
+        case SAVE_MENU_CAUGHT:
             if (IsNationalPokedexEnabled())
-                string = ConvertIntToDecimalStringN(string, GetNationalPokedexCount(1), 0, 3);
+                string = ConvertIntToDecimalStringN(string, GetNationalPokedexCount(FLAG_GET_CAUGHT), STR_CONV_MODE_LEFT_ALIGN, 3);
             else
-                string = ConvertIntToDecimalStringN(string, GetHoennPokedexCount(1), 0, 3);
+                string = ConvertIntToDecimalStringN(string, GetHoennPokedexCount(FLAG_GET_CAUGHT), STR_CONV_MODE_LEFT_ALIGN, 3);
             *string = EOS;
             break;
-        case 2:
-            string = ConvertIntToDecimalStringN(string, gSaveBlock2Ptr->playTimeHours, 0, 3);
+        case SAVE_MENU_PLAY_TIME:
+            string = ConvertIntToDecimalStringN(string, gSaveBlock2Ptr->playTimeHours, STR_CONV_MODE_LEFT_ALIGN, 3);
             *(string++) = CHAR_COLON;
-            ConvertIntToDecimalStringN(string, gSaveBlock2Ptr->playTimeMinutes, 2, 2);
+            ConvertIntToDecimalStringN(string, gSaveBlock2Ptr->playTimeMinutes, STR_CONV_MODE_LEADING_ZEROS, 2);
             break;
-        case 3:
-            sub_81245DC(string, gMapHeader.regionMapSectionId);
+        case SAVE_MENU_LOCATION:
+            GetMapNameGeneric(string, gMapHeader.regionMapSectionId);
             break;
-        case 4:
-            for (curFlag = FLAG_BADGE01_GET, flagCount = 0, endOfString = string + 1; curFlag <= FLAG_BADGE08_GET; curFlag++)
+        case SAVE_MENU_BADGES:
+            for (curFlag = FLAG_BADGE01_GET, flagCount = 0, endOfString = string + 1; curFlag < FLAG_BADGE01_GET + NUM_BADGES; curFlag++)
             {
                 if (FlagGet(curFlag))
                     flagCount++;

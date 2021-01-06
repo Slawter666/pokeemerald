@@ -62,6 +62,8 @@ static const u32 sTitleScreenRayquazaTilemap[] = INCBIN_U32("graphics/title_scre
 static const u32 sTitleScreenLogoShineGfx[] = INCBIN_U32("graphics/title_screen/logo_shine.4bpp.lz");
 static const u32 sTitleScreenCloudsGfx[] = INCBIN_U32("graphics/title_screen/clouds.4bpp.lz");
 
+
+
 const u16 gIntroWaterDropAlphaBlend[] =
 {
     BLDALPHA_BLEND(16, 0),
@@ -102,10 +104,10 @@ const u16 gIntroWaterDropAlphaBlend[] =
 static const struct OamData sVersionBannerLeftOamData =
 {
     .y = 160,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 1,
+    .bpp = ST_OAM_8BPP,
     .shape = SPRITE_SHAPE(64x32),
     .x = 0,
     .matrixNum = 0,
@@ -119,10 +121,10 @@ static const struct OamData sVersionBannerLeftOamData =
 static const struct OamData sVersionBannerRightOamData =
 {
     .y = 160,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 1,
+    .bpp = ST_OAM_8BPP,
     .shape = SPRITE_SHAPE(64x32),
     .x = 0,
     .matrixNum = 0,
@@ -190,10 +192,10 @@ static const struct CompressedSpriteSheet sSpriteSheet_EmeraldVersion[] =
 static const struct OamData sOamData_CopyrightBanner =
 {
     .y = 160,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 0,
+    .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(32x8),
     .x = 0,
     .matrixNum = 0,
@@ -302,10 +304,10 @@ static const struct SpritePalette sSpritePalette_PressStart[] =
 static const struct OamData sPokemonLogoShineOamData =
 {
     .y = 160,
-    .affineMode = 0,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 0,
+    .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(64x64),
     .x = 0,
     .matrixNum = 0,
@@ -353,7 +355,7 @@ static void SpriteCB_VersionBannerLeft(struct Sprite *sprite)
 {
     if (gTasks[sprite->data[1]].data[1] != 0)
     {
-        sprite->oam.objMode = 0;
+        sprite->oam.objMode = ST_OAM_OBJ_NORMAL;
         sprite->pos1.y = VERSION_BANNER_Y_GOAL;
     }
     else
@@ -370,7 +372,7 @@ static void SpriteCB_VersionBannerRight(struct Sprite *sprite)
 {
     if (gTasks[sprite->data[1]].data[1] != 0)
     {
-        sprite->oam.objMode = 0;
+        sprite->oam.objMode = ST_OAM_OBJ_NORMAL;
         sprite->pos1.y = VERSION_BANNER_Y_GOAL;
     }
     else
@@ -484,22 +486,22 @@ static void StartPokemonLogoShine(u8 flashBg)
     case 0:
     case 2:
         spriteId = CreateSprite(&sPokemonLogoShineSpriteTemplate, 0, 68, 0);
-        gSprites[spriteId].oam.objMode = 2;
+        gSprites[spriteId].oam.objMode = ST_OAM_OBJ_WINDOW;
         gSprites[spriteId].data[0] = flashBg;
         break;
     case 1:
         spriteId = CreateSprite(&sPokemonLogoShineSpriteTemplate, 0, 68, 0);
-        gSprites[spriteId].oam.objMode = 2;
+        gSprites[spriteId].oam.objMode = ST_OAM_OBJ_WINDOW;
         gSprites[spriteId].data[0] = flashBg;
         gSprites[spriteId].invisible = TRUE;
 
         spriteId = CreateSprite(&sPokemonLogoShineSpriteTemplate, 0, 68, 0);
         gSprites[spriteId].callback = SpriteCB_PokemonLogoShine2;
-        gSprites[spriteId].oam.objMode = 2;
+        gSprites[spriteId].oam.objMode = ST_OAM_OBJ_WINDOW;
 
         spriteId = CreateSprite(&sPokemonLogoShineSpriteTemplate, -80, 68, 0);
         gSprites[spriteId].callback = SpriteCB_PokemonLogoShine2;
-        gSprites[spriteId].oam.objMode = 2;
+        gSprites[spriteId].oam.objMode = ST_OAM_OBJ_WINDOW;
         break;
     }
 }
@@ -544,11 +546,14 @@ void CB2_InitTitleScreen(void)
         gMain.state = 1;
         break;
     case 1:
-        LZ77UnCompVram(gTitleScreenPokemonLogoGfx, (void *)VRAM);
+        // bg2
+        LZ77UnCompVram(gTitleScreenPokemonLogoGfx, (void *)(BG_CHAR_ADDR(0)));
         LZ77UnCompVram(gUnknown_08DE0644, (void *)(BG_SCREEN_ADDR(9)));
         LoadPalette(gTitleScreenBgPalettes, 0, 0x1E0);
+        // bg3
         LZ77UnCompVram(sTitleScreenRayquazaGfx, (void *)(BG_CHAR_ADDR(2)));
         LZ77UnCompVram(sTitleScreenRayquazaTilemap, (void *)(BG_SCREEN_ADDR(26)));
+        // bg1
         LZ77UnCompVram(sTitleScreenCloudsGfx, (void *)(BG_CHAR_ADDR(3)));
         LZ77UnCompVram(gUnknown_08DDE458, (void *)(BG_SCREEN_ADDR(27)));
         ScanlineEffect_Stop();
@@ -604,7 +609,7 @@ void CB2_InitTitleScreen(void)
                                     | DISPCNT_OBJ_ON
                                     | DISPCNT_WIN0_ON
                                     | DISPCNT_OBJWIN_ON);
-        m4aSongNumStart(MUS_TITLE3);
+        m4aSongNumStart(MUS_TITLE);
         gMain.state = 5;
         break;
     case 5:
@@ -722,29 +727,29 @@ static void Task_TitleScreenPhase2(u8 taskId)
 // Show Rayquaza silhouette and process main title screen input
 static void Task_TitleScreenPhase3(u8 taskId)
 {
-    if ((gMain.newKeys & A_BUTTON) || (gMain.newKeys & START_BUTTON))
+    if ((JOY_NEW(A_BUTTON)) || (JOY_NEW(START_BUTTON)))
     {
         FadeOutBGM(4);
         BeginNormalPaletteFade(0xFFFFFFFF, 0, 0, 0x10, RGB_WHITEALPHA);
         SetMainCallback2(CB2_GoToMainMenu);
     }
-    else if ((gMain.heldKeys & CLEAR_SAVE_BUTTON_COMBO) == CLEAR_SAVE_BUTTON_COMBO)
+    else if (JOY_HELD(CLEAR_SAVE_BUTTON_COMBO) == CLEAR_SAVE_BUTTON_COMBO)
     {
         SetMainCallback2(CB2_GoToClearSaveDataScreen);
     }
-    else if ((gMain.heldKeys & RESET_RTC_BUTTON_COMBO) == RESET_RTC_BUTTON_COMBO
+    else if (JOY_HELD(RESET_RTC_BUTTON_COMBO) == RESET_RTC_BUTTON_COMBO
       && CanResetRTC() == TRUE)
     {
         FadeOutBGM(4);
         BeginNormalPaletteFade(0xFFFFFFFF, 0, 0, 0x10, RGB_BLACK);
         SetMainCallback2(CB2_GoToResetRtcScreen);
     }
-    else if ((gMain.heldKeys & BERRY_UPDATE_BUTTON_COMBO) == BERRY_UPDATE_BUTTON_COMBO)
+    else if (JOY_HELD(BERRY_UPDATE_BUTTON_COMBO) == BERRY_UPDATE_BUTTON_COMBO)
     {
         FadeOutBGM(4);
         BeginNormalPaletteFade(0xFFFFFFFF, 0, 0, 0x10, RGB_BLACK);
         SetMainCallback2(CB2_GoToBerryFixScreen);
-    }
+    }   
     else
     {
         SetGpuReg(REG_OFFSET_BG2Y_L, 0);

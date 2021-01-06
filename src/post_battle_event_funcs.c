@@ -5,10 +5,10 @@
 #include "hall_of_fame.h"
 #include "load_save.h"
 #include "overworld.h"
-#include "script_pokemon_util_80F87D8.h"
+#include "script_pokemon_util.h"
 #include "tv.h"
 #include "constants/heal_locations.h"
-#include "constants/flags.h"
+#include "constants/tv.h"
 
 int GameClear(void)
 {
@@ -76,9 +76,9 @@ int GameClear(void)
             }
         }
 
-        if (ribbonCounts[0].count > 4)
+        if (ribbonCounts[0].count > NUM_CUTIES_RIBBONS)
         {
-            sub_80EE4DC(&gPlayerParty[ribbonCounts[0].partyIndex], MON_DATA_CHAMPION_RIBBON);
+            TryPutSpotTheCutiesOnAir(&gPlayerParty[ribbonCounts[0].partyIndex], MON_DATA_CHAMPION_RIBBON);
         }
     }
 
@@ -86,7 +86,7 @@ int GameClear(void)
     return 0;
 }
 
-bool8 sp0C8_whiteout_maybe(void)
+bool8 SetCB2WhiteOut(void)
 {
     SetMainCallback2(CB2_WhiteOut);
     return FALSE;

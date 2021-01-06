@@ -9,7 +9,6 @@
 #include "pokemon.h"
 #include "pokemon_size_record.h"
 #include "script.h"
-#include "constants/species.h"
 #include "strings.h"
 #include "string_util.h"
 #include "text.h"
@@ -286,7 +285,7 @@ bool8 MEScrCmd_givenationaldex(struct ScriptContext *ctx)
 
 bool8 MEScrCmd_addrareword(struct ScriptContext *ctx)
 {
-    sub_811EFC0(ScriptReadByte(ctx));
+    UnlockAdditionalPhrase(ScriptReadByte(ctx));
     StringExpandPlaceholders(gStringVar4, gText_MysteryGiftRareWord);
     ctx->data[2] = 2;
     return FALSE;

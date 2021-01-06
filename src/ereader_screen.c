@@ -1,5 +1,5 @@
 #include "global.h"
-#include "alloc.h"
+#include "malloc.h"
 #include "decompress.h"
 #include "ereader_helpers.h"
 #include "link.h"
@@ -38,7 +38,7 @@ struct Unk03006370
 
 static void sub_81D5084(u8);
 
-extern struct Unk03006370 gUnknown_03006370;
+struct Unk03006370 gUnknown_03006370;
 
 extern const u8 gUnknown_089A3470[];
 extern const u8 gMultiBootProgram_BerryGlitchFix_Start[];
@@ -49,7 +49,7 @@ static void sub_81D4D50(struct Unk03006370 *arg0, int arg1, u32 *arg2)
     REG_IME = 0;
     gIntrTable[1] = sub_81D3FAC;
     gIntrTable[2] = sub_81D3F9C;
-    sub_81D41A0();
+    EReaderHelper_SaveRegsState();
     sub_81D4238();
     REG_IE |= INTR_FLAG_VCOUNT;
     REG_IME = backupIME;
@@ -63,7 +63,7 @@ static void sub_81D4DB8(struct Unk03006370 *arg0)
     volatile u16 backupIME = REG_IME;
     REG_IME = 0;
     sub_81D4238();
-    sub_81D41F4();
+    EReaderHelper_RestoreRegsState();
     RestoreSerialTimer3IntrHandlers();
     REG_IME = backupIME;
 }
@@ -71,7 +71,7 @@ static void sub_81D4DB8(struct Unk03006370 *arg0)
 static u8 sub_81D4DE8(struct Unk03006370 *arg0)
 {
     u8 var0 = 0;
-    arg0->unk0 = sub_81D3D70(1, arg0->unk4, arg0->unk8, NULL);
+    arg0->unk0 = EReaderHandleTransfer(1, arg0->unk4, arg0->unk8, NULL);
     if ((arg0->unk0 & 0x13) == 0x10)
         var0 = 1;
 
@@ -85,10 +85,10 @@ static u8 sub_81D4DE8(struct Unk03006370 *arg0)
     return var0;
 }
 
-static void sub_81D4E30(void)
+static void OpenEReaderLink(void)
 {
     memset(gDecompressionBuffer, 0, 0x2000);
-    gLinkType = 0x5503;
+    gLinkType = LINKTYPE_EREADER;
     OpenLink();
     SetSuppressLinkErrorMessage(TRUE);
 }
@@ -137,7 +137,7 @@ static u32 sub_81D4EE4(u8 *arg0, u16 *arg1)
         {
             *arg0 = 1;
         }
-        else if (gMain.newKeys & B_BUTTON)
+        else if (JOY_NEW(B_BUTTON))
         {
             *arg0 = 0;
             return 1;
@@ -153,12 +153,12 @@ static u32 sub_81D4EE4(u8 *arg0, u16 *arg1)
     case 2:
         if (GetLinkPlayerCount_2() == 2)
         {
-            PlaySE(SE_PINPON);
+            PlaySE(SE_DING_DONG);
             CheckShouldAdvanceLinkState();
             *arg1 = 0;
             *arg0 = 3;
         }
-        else if (gMain.newKeys & B_BUTTON)
+        else if (JOY_NEW(B_BUTTON))
         {
             *arg0 = 0;
             return 1;
@@ -192,7 +192,7 @@ static u32 sub_81D4EE4(u8 *arg0, u16 *arg1)
         }
         break;
     case 4:
-        sub_800ABF4(0);
+        SetCloseLinkCallbackAndType(0);
         *arg0 = 5;
         break;
     case 5:
@@ -251,11 +251,11 @@ static void sub_81D5084(u8 taskId)
     switch (data->unk8)
     {
     case 0:
-        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gUnknown_085EDFD6))
+        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gJPText_ReceiveMysteryGiftWithEReader))
             data->unk8 = 1;
         break;
     case 1:
-        sub_81D4E30();
+        OpenEReaderLink();
         sub_81D505C(&data->unk0);
         data->unk8 = 2;
         break;
@@ -275,9 +275,9 @@ static void sub_81D5084(u8 taskId)
         }
         break;
     case 4:
-        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gUnknown_085EDFF5))
+        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gJPText_SelectConnectFromEReaderMenu))
         {
-            AddTextPrinterToWindow1(gUnknown_085EE014);
+            AddTextPrinterToWindow1(gJPText_SelectConnectWithGBA);
             sub_81D505C(&data->unk0);
             data->unk8 = 5;
         }
@@ -285,10 +285,10 @@ static void sub_81D5084(u8 taskId)
     case 5:
         if (sub_81D5064(&data->unk0, 90))
         {
-            sub_81D4E30();
+            OpenEReaderLink();
             data->unk8 = 6;
         }
-        else if (gMain.newKeys & B_BUTTON)
+        else if (JOY_NEW(B_BUTTON))
         {
             sub_81D505C(&data->unk0);
             PlaySE(SE_SELECT);
@@ -296,7 +296,7 @@ static void sub_81D5084(u8 taskId)
         }
         break;
     case 6:
-        if (gMain.newKeys & B_BUTTON)
+        if (JOY_NEW(B_BUTTON))
         {
             PlaySE(SE_SELECT);
             CloseLink();
@@ -319,16 +319,16 @@ static void sub_81D5084(u8 taskId)
         else if (sub_81D5064(&data->unk0, 10))
         {
             CloseLink();
-            sub_81D4E30();
+            OpenEReaderLink();
             sub_81D505C(&data->unk0);
         }
         break;
     case 7:
-        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gUnknown_085EE05C))
+        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gJPText_LinkIsIncorrect))
             data->unk8 = 4;
         break;
     case 8:
-        AddTextPrinterToWindow1(gUnknown_085EE097);
+        AddTextPrinterToWindow1(gJPText_Connecting);
         // XXX: This (u32*) cast is discarding the const qualifier from gUnknown_089A3470
         sub_81D4D50(&gUnknown_03006370, gMultiBootProgram_BerryGlitchFix_Start - gUnknown_089A3470, (u32*)gUnknown_089A3470);
         data->unk8 = 9;
@@ -347,7 +347,7 @@ static void sub_81D5084(u8 taskId)
         else if (data->unkE == 1)
         {
             sub_81D505C(&data->unk0);
-            AddTextPrinterToWindow1(gUnknown_085EE120);
+            AddTextPrinterToWindow1(gJPText_PleaseWaitAMoment);
             data->unk8 = 11;
         }
         else
@@ -360,8 +360,8 @@ static void sub_81D5084(u8 taskId)
             data->unk8 = 12;
         break;
     case 12:
-        sub_81D4E30();
-        AddTextPrinterToWindow1(gUnknown_085EE0DC);
+        OpenEReaderLink();
+        AddTextPrinterToWindow1(gJPText_AllowEReaderToLoadCard);
         data->unk8 = 13;
         break;
     case 13:
@@ -370,7 +370,7 @@ static void sub_81D5084(u8 taskId)
             case 0:
                 break;
             case 2:
-                AddTextPrinterToWindow1(gUnknown_085EE097);
+                AddTextPrinterToWindow1(gJPText_Connecting);
                 data->unk8 = 14;
                 break;
             case 1:
@@ -403,7 +403,7 @@ static void sub_81D5084(u8 taskId)
         break;
     case 15:
         data->unkE = EReader_IsReceivedDataValid((struct EReaderTrainerHillSet *)gDecompressionBuffer);
-        sub_800ABF4(data->unkE);
+        SetCloseLinkCallbackAndType(data->unkE);
         data->unk8 = 16;
         break;
     case 16:
@@ -418,7 +418,7 @@ static void sub_81D5084(u8 taskId)
     case 17:
         if (TryWriteTrainerHill((struct EReaderTrainerHillSet *)&gDecompressionBuffer))
         {
-            AddTextPrinterToWindow1(gUnknown_085EE0FA);
+            AddTextPrinterToWindow1(gJPText_ConnectionComplete);
             sub_81D505C(&data->unk0);
             data->unk8 = 18;
         }
@@ -430,29 +430,29 @@ static void sub_81D5084(u8 taskId)
     case 18:
         if (sub_81D5064(&data->unk0, 120))
         {
-            AddTextPrinterToWindow1(gUnknown_085EE107);
-            PlayFanfare(MUS_FANFA4);
+            AddTextPrinterToWindow1(gJPText_NewTrainerHasComeToHoenn);
+            PlayFanfare(MUS_OBTAIN_ITEM);
             data->unk8 = 19;
         }
         break;
     case 19:
-        if (IsFanfareTaskInactive() && (gMain.newKeys & (A_BUTTON | B_BUTTON)))
+        if (IsFanfareTaskInactive() && (JOY_NEW(A_BUTTON | B_BUTTON)))
             data->unk8 = 26;
         break;
     case 23:
-        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9,gUnknown_085EE06B))
+        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gJPText_CardReadingHasBeenHalted))
             data->unk8 = 26;
         break;
     case 20:
-        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gUnknown_085EE0A3))
+        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gJPText_ConnectionErrorCheckLink))
             data->unk8 = 0;
         break;
     case 21:
-        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gUnknown_085EE0BF))
+        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gJPText_ConnectionErrorTryAgain))
             data->unk8 = 0;
         break;
     case 22:
-        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gUnknown_085EE12D))
+        if (MG_PrintTextOnWindow1AndWaitButton(&data->unk9, gJPText_WriteErrorUnableToSaveData))
             data->unk8 = 0;
         break;
     case 26:

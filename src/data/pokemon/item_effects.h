@@ -26,12 +26,12 @@ const u8 gItemEffect_ParalyzeHeal[6] = {
 const u8 gItemEffect_FullRestore[7] = {
     [3] = ITEM3_STATUS_ALL,
     [4] = ITEM4_HEAL_HP,
-    [6] = -1,
+    [6] = ITEM6_HEAL_FULL,
 };
 
 const u8 gItemEffect_MaxPotion[7] = {
     [4] = ITEM4_HEAL_HP,
-    [6] = -1,
+    [6] = ITEM6_HEAL_FULL,
 };
 
 const u8 gItemEffect_HyperPotion[7] = {
@@ -50,12 +50,12 @@ const u8 gItemEffect_FullHeal[6] = {
 
 const u8 gItemEffect_Revive[7] = {
     [4] = ITEM4_REVIVE | ITEM4_HEAL_HP,
-    [6] = -2,
+    [6] = ITEM6_HEAL_HALF,
 };
 
 const u8 gItemEffect_MaxRevive[7] = {
     [4] = ITEM4_REVIVE | ITEM4_HEAL_HP,
-    [6] = -1,
+    [6] = ITEM6_HEAL_FULL,
 };
 
 const u8 gItemEffect_FreshWater[7] = {
@@ -107,7 +107,7 @@ const u8 gItemEffect_HealPowder[9] = {
 const u8 gItemEffect_RevivalHerb[10] = {
     [4] = ITEM4_REVIVE | ITEM4_HEAL_HP,
     [5] = ITEM5_FRIENDSHIP_ALL,
-    [6] = -1,
+    [6] = ITEM6_HEAL_FULL,
     [7] = -15,
     [8] = -15,
     [9] = -20,
@@ -157,7 +157,7 @@ const u8 gItemEffect_BerryJuice[7] = {
 const u8 gItemEffect_SacredAsh[7] = {
     [0] = ITEM0_SACRED_ASH,
     [4] = ITEM4_REVIVE | ITEM4_HEAL_HP,
-    [6] = -1,
+    [6] = ITEM6_HEAL_FULL,
 };
 
 const u8 gItemEffect_HPUp[10] = {
@@ -206,7 +206,7 @@ const u8 gItemEffect_RareCandy[10] = {
     [3] = ITEM3_LEVEL_UP,
     [4] = ITEM4_REVIVE | ITEM4_HEAL_HP,
     [5] = ITEM5_FRIENDSHIP_ALL,
-    [6] = 0xFD,
+    [6] = ITEM6_HEAL_LVL_UP,
     [7] = 5,
     [8] = 3,
     [9] = 2,
@@ -236,7 +236,7 @@ const u8 gItemEffect_PPMax[9] = {
 };
 
 const u8 gItemEffect_GuardSpec[8] = {
-    [3] = ITEM3_MIST,
+    [3] = ITEM3_GUARD_SPEC,
     [5] = ITEM5_FRIENDSHIP_LOW | ITEM5_FRIENDSHIP_MID,
     [6] = 1,
     [7] = 1,
@@ -377,7 +377,7 @@ const u8 gItemEffect_QualotBerry[10] = {
     [9] = 2,
 };
 
-const u8 gItemEffect_HondrewBerry[10] = {
+const u8 gItemEffect_HondewBerry[10] = {
     [5] = ITEM5_EV_SPATK | ITEM5_FRIENDSHIP_ALL,
     [6] = -10,
     [7] = 10,
@@ -469,7 +469,7 @@ const u8 *const gItemEffectTable[] =
     [ITEM_POMEG_BERRY - ITEM_POTION] = gItemEffect_PomegBerry,
     [ITEM_KELPSY_BERRY - ITEM_POTION] = gItemEffect_KelpsyBerry,
     [ITEM_QUALOT_BERRY - ITEM_POTION] = gItemEffect_QualotBerry,
-    [ITEM_HONDEW_BERRY - ITEM_POTION] = gItemEffect_HondrewBerry,
+    [ITEM_HONDEW_BERRY - ITEM_POTION] = gItemEffect_HondewBerry,
     [ITEM_GREPA_BERRY - ITEM_POTION] = gItemEffect_GrepaBerry,
     [ITEM_TAMATO_BERRY - ITEM_POTION] = gItemEffect_TamatoBerry,
     [LAST_BERRY_INDEX - ITEM_POTION] = NULL

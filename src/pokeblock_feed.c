@@ -1,5 +1,5 @@
 #include "global.h"
-#include "alloc.h"
+#include "malloc.h"
 #include "battle.h"
 #include "bg.h"
 #include "data.h"
@@ -84,7 +84,7 @@ EWRAM_DATA static struct PokeblockFeedStruct *sPokeblockFeed = NULL;
 EWRAM_DATA static struct CompressedSpritePalette sPokeblockSpritePal = {0};
 
 // const rom data
-static const u8 sNatureToMonPokeblockAnim[][2] =
+static const u8 sNatureToMonPokeblockAnim[NUM_NATURES][2] =
 {
     [NATURE_HARDY] = {  0, 0 },
     [NATURE_LONELY] = {  3, 0 },
@@ -382,22 +382,23 @@ static const struct WindowTemplate sWindowTemplates[] =
     DUMMY_WIN_TEMPLATE
 };
 
+// - 1 excludes PBLOCK_CLR_NONE
 static const u32* const sPokeblocksPals[] =
 {
-    gPokeblockRed_Pal,
-    gPokeblockBlue_Pal,
-    gPokeblockPink_Pal,
-    gPokeblockGreen_Pal,
-    gPokeblockYellow_Pal,
-    gPokeblockPurple_Pal,
-    gPokeblockIndigo_Pal,
-    gPokeblockBrown_Pal,
-    gPokeblockLiteBlue_Pal,
-    gPokeblockOlive_Pal,
-    gPokeblockGray_Pal,
-    gPokeblockBlack_Pal,
-    gPokeblockWhite_Pal,
-    gPokeblockGold_Pal
+    [PBLOCK_CLR_RED - 1]       = gPokeblockRed_Pal,
+    [PBLOCK_CLR_BLUE - 1]      = gPokeblockBlue_Pal,
+    [PBLOCK_CLR_PINK - 1]      = gPokeblockPink_Pal,
+    [PBLOCK_CLR_GREEN - 1]     = gPokeblockGreen_Pal,
+    [PBLOCK_CLR_YELLOW - 1]    = gPokeblockYellow_Pal,
+    [PBLOCK_CLR_PURPLE - 1]    = gPokeblockPurple_Pal,
+    [PBLOCK_CLR_INDIGO - 1]    = gPokeblockIndigo_Pal,
+    [PBLOCK_CLR_BROWN - 1]     = gPokeblockBrown_Pal,
+    [PBLOCK_CLR_LITE_BLUE - 1] = gPokeblockLiteBlue_Pal,
+    [PBLOCK_CLR_OLIVE - 1]     = gPokeblockOlive_Pal,
+    [PBLOCK_CLR_GRAY - 1]      = gPokeblockGray_Pal,
+    [PBLOCK_CLR_BLACK - 1]     = gPokeblockBlack_Pal,
+    [PBLOCK_CLR_WHITE - 1]     = gPokeblockWhite_Pal,
+    [PBLOCK_CLR_GOLD - 1]      = gPokeblockGold_Pal
 };
 
 static const union AffineAnimCmd sSpriteAffineAnim_84120DC[] =
@@ -459,10 +460,10 @@ static const union AffineAnimCmd *const sSpriteAffineAnimTable_85F066C[] =
 static const struct OamData sThrownPokeblockOamData =
 {
     .y = 0,
-    .affineMode = 3,
-    .objMode = 0,
+    .affineMode = ST_OAM_AFFINE_DOUBLE,
+    .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = 0,
-    .bpp = 0,
+    .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(8x8),
     .x = 0,
     .matrixNum = 0,
@@ -518,7 +519,7 @@ static void CB2_PokeblockFeed(void)
     RunTasks();
     AnimateSprites();
     BuildOamBuffer();
-    do_scheduled_bg_tilemap_copies_to_vram();
+    DoScheduledBgTilemapCopiesToVram();
     UpdatePaletteFade();
 }
 
@@ -536,7 +537,7 @@ static bool8 TransitionToPokeblockFeedScene(void)
     case 0:
         sPokeblockFeed = AllocZeroed(sizeof(*sPokeblockFeed));
         SetVBlankHBlankCallbacksToNull();
-        clear_scheduled_bg_copies_to_vram();
+        ClearScheduledBgCopiesToVram();
         gMain.state++;
         break;
     case 1:
@@ -607,11 +608,11 @@ void CB2_PreparePokeblockFeedScene(void)
 {
     while (1)
     {
-        if (sub_81221EC() == TRUE)
+        if (MenuHelpers_CallLinkSomething() == TRUE)
             break;
         if (TransitionToPokeblockFeedScene() == TRUE)
             break;
-        if (sub_81221AC() == TRUE)
+        if (MenuHelpers_LinkSomething() == TRUE)
             break;
     }
 }
@@ -624,7 +625,7 @@ static void HandleInitBackgrounds(void)
     InitBgsFromTemplates(0, sBackgroundTemplates, ARRAY_COUNT(sBackgroundTemplates));
     SetBgTilemapBuffer(1, sPokeblockFeed->tilemapBuffer);
     ResetAllBgsCoordinates();
-    schedule_bg_copy_tilemap_to_vram(1);
+    ScheduleBgCopyTilemapToVram(1);
 
     SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP);
 
@@ -645,7 +646,7 @@ static bool8 LoadMonAndSceneGfx(struct Pokemon *mon)
     case 0:
         species = GetMonData(mon, MON_DATA_SPECIES2);
         personality = GetMonData(mon, MON_DATA_PERSONALITY);
-        HandleLoadSpecialPokePic_2(&gMonFrontPicTable[species], gMonSpritesGfxPtr->sprites[1], species, personality);
+        HandleLoadSpecialPokePic_2(&gMonFrontPicTable[species], gMonSpritesGfxPtr->sprites.ptr[1], species, personality);
         sPokeblockFeed->loadGfxState++;
         break;
     case 1:
@@ -676,12 +677,12 @@ static bool8 LoadMonAndSceneGfx(struct Pokemon *mon)
         sPokeblockFeed->loadGfxState++;
         break;
     case 6:
-        reset_temp_tile_data_buffers();
-        decompress_and_copy_tile_data_to_vram(1, gBattleTerrainTiles_Building, 0, 0, 0);
+        ResetTempTileDataBuffers();
+        DecompressAndCopyTileDataToVram(1, gBattleTerrainTiles_Building, 0, 0, 0);
         sPokeblockFeed->loadGfxState++;
         break;
     case 7:
-        if (free_temp_tile_data_buffers_if_possible() != TRUE)
+        if (FreeTempTileDataBuffersIfPossible() != TRUE)
         {
             LZDecompressWram(gUnknown_08D9BA44, sPokeblockFeed->tilemapBuffer);
             sPokeblockFeed->loadGfxState++;
@@ -704,7 +705,7 @@ static void HandleInitWindows(void)
     LoadPalette(gUnknown_0860F074, 0xF0, 0x20);
     FillWindowPixelBuffer(0, PIXEL_FILL(0));
     PutWindowTilemap(0);
-    schedule_bg_copy_tilemap_to_vram(0);
+    ScheduleBgCopyTilemapToVram(0);
 }
 
 static void SetPokeblockSpritePal(u8 pokeblockCaseId)
@@ -833,7 +834,7 @@ static u8 CreateMonSprite(struct Pokemon* mon)
     if (!IsMonSpriteNotFlipped(species))
     {
         gSprites[spriteId].affineAnims = sSpriteAffineAnimTable_MonNoFlip;
-        gSprites[spriteId].oam.affineMode = 3;
+        gSprites[spriteId].oam.affineMode = ST_OAM_AFFINE_DOUBLE;
         CalcCenterToCornerVec(&gSprites[spriteId], gSprites[spriteId].oam.shape, gSprites[spriteId].oam.size, gSprites[spriteId].oam.affineMode);
         sPokeblockFeed->noMonFlip = FALSE;
     }
@@ -869,7 +870,7 @@ static void sub_817A468(struct Sprite* sprite)
 static u8 CreatePokeblockCaseSpriteForFeeding(void)
 {
     u8 spriteId = CreatePokeblockCaseSprite(188, 100, 2);
-    gSprites[spriteId].oam.affineMode = 1;
+    gSprites[spriteId].oam.affineMode = ST_OAM_AFFINE_NORMAL;
     gSprites[spriteId].affineAnims = sSpriteAffineAnimTable_85F0664;
     gSprites[spriteId].callback = SpriteCallbackDummy;
     InitSpriteAffineAnim(&gSprites[spriteId]);
@@ -879,7 +880,7 @@ static u8 CreatePokeblockCaseSpriteForFeeding(void)
 static void DoPokeblockCaseThrowEffect(u8 spriteId, bool8 a1)
 {
     FreeOamMatrix(gSprites[spriteId].oam.matrixNum);
-    gSprites[spriteId].oam.affineMode = 3;
+    gSprites[spriteId].oam.affineMode = ST_OAM_AFFINE_DOUBLE;
 
     if (!a1)
         gSprites[spriteId].affineAnims = sSpriteAffineAnimTable_85F0668;
@@ -947,7 +948,7 @@ static void sub_817A634(void)
         sub_817A91C();
         if (sNatureToMonPokeblockAnim[pokeblockFeed->nature][1] != 0)
         {
-            pokeblockFeed->monSpritePtr->oam.affineMode = 3;
+            pokeblockFeed->monSpritePtr->oam.affineMode = ST_OAM_AFFINE_DOUBLE;
             pokeblockFeed->monSpritePtr->oam.matrixNum = 0;
             pokeblockFeed->monSpritePtr->affineAnims = sSpriteAffineAnimTable_85F04FC;
             InitSpriteAffineAnim(pokeblockFeed->monSpritePtr);

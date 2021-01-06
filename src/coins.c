@@ -6,8 +6,7 @@
 #include "string_util.h"
 #include "menu.h"
 #include "international_string_util.h"
-
-#define MAX_COINS 9999
+#include "constants/coins.h"
 
 EWRAM_DATA u8 sCoinsWindowId = 0;
 
@@ -15,7 +14,7 @@ void PrintCoinsString(u32 coinAmount)
 {
     u32 xAlign;
 
-    ConvertIntToDecimalStringN(gStringVar1, coinAmount, STR_CONV_MODE_RIGHT_ALIGN, 4);
+    ConvertIntToDecimalStringN(gStringVar1, coinAmount, STR_CONV_MODE_RIGHT_ALIGN, MAX_COIN_DIGITS);
     StringExpandPlaceholders(gStringVar4, gText_Coins);
 
     xAlign = GetStringRightAlignXOffset(1, gStringVar4, 0x40);
@@ -49,7 +48,7 @@ void SetCoins(u16 coinAmount)
     gSaveBlock1Ptr->coins = coinAmount ^ gSaveBlock2Ptr->encryptionKey;
 }
 
-bool8 GiveCoins(u16 toAdd)
+bool8 AddCoins(u16 toAdd)
 {
     u16 newAmount;
     u16 ownedCoins = GetCoins();
@@ -71,7 +70,7 @@ bool8 GiveCoins(u16 toAdd)
     return TRUE;
 }
 
-bool8 TakeCoins(u16 toSub)
+bool8 RemoveCoins(u16 toSub)
 {
     u16 ownedCoins = GetCoins();
     if (ownedCoins >= toSub)

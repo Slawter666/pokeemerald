@@ -24,23 +24,25 @@
 #define MOVEMENT_MODE_FROZEN 1
 #define MOVEMENT_MODE_SCRIPTED 2
 
+#define SKIP_OBJECT_EVENT_LOAD  1
+
 struct InitialPlayerAvatarState
 {
     u8 transitionFlags;
     u8 direction;
 };
 
-struct LinkPlayerEventObject
+struct LinkPlayerObjectEvent
 {
     u8 active;
     u8 linkPlayerId;
-    u8 eventObjId;
+    u8 objEventId;
     u8 movementMode;
 };
 
 // Exported RAM declarations
 extern struct WarpData gLastUsedWarp;
-extern struct LinkPlayerEventObject gLinkPlayerEventObjects[4];
+extern struct LinkPlayerObjectEvent gLinkPlayerObjectEvents[4];
 
 extern u16 *gBGTilemapBuffers1;
 extern u16 *gBGTilemapBuffers2;
@@ -63,10 +65,10 @@ void IncrementGameStat(u8 index);
 u32 GetGameStat(u8 index);
 void SetGameStat(u8 index, u32 value);
 void ApplyNewEncryptionKeyToGameStats(u32 newKey);
-void LoadEventObjTemplatesFromHeader(void);
-void LoadSaveblockEventObjScripts(void);
-void Overworld_SetEventObjTemplateCoords(u8 localId, s16 x, s16 y);
-void Overworld_SetEventObjTemplateMovementType(u8 localId, u8 movementType);
+void LoadObjEventTemplatesFromHeader(void);
+void LoadSaveblockObjEventScripts(void);
+void Overworld_SetObjEventTemplateCoords(u8 localId, s16 x, s16 y);
+void Overworld_SetObjEventTemplateMovementType(u8 localId, u8 movementType);
 const struct MapLayout *GetMapLayout(void);
 void ApplyCurrentWarp(void);
 struct MapHeader const *const Overworld_GetMapHeaderByGroupAndId(u16 mapGroup, u16 mapNum);
@@ -99,8 +101,7 @@ void SetDefaultFlashLevel(void);
 void Overworld_SetFlashLevel(s32 flashLevel);
 u8 Overworld_GetFlashLevel(void);
 void SetCurrentMapLayout(u16 mapLayoutId);
-void sub_8085540(u8 var);
-u8 sub_808554C(void);
+void SetObjectEventLoadFlag(u8 var);
 u16 GetLocationMusic(struct WarpData *warp);
 u16 GetCurrLocationDefaultMusic(void);
 u16 GetWarpDestinationMusic(void);
@@ -135,11 +136,9 @@ void SetUnusedCallback(void *a0);
 void CB2_NewGame(void);
 void CB2_WhiteOut(void);
 void CB2_LoadMap(void);
-void sub_8086024(void);
-void sub_8086074(void);
+void CB2_ReturnToFieldContestHall(void);
+void CB2_ReturnToFieldCableClub(void);
 void CB2_ReturnToField(void);
-void CB2_ReturnToFieldLocal(void);
-void CB2_ReturnToFieldLink(void);
 void CB2_ReturnToFieldFromMultiplayer(void);
 void CB2_ReturnToFieldWithOpenMenu(void);
 void CB2_ReturnToFieldContinueScript(void);
@@ -157,6 +156,6 @@ bool32 sub_8087598(void);
 bool32 sub_80875C8(void);
 bool32 sub_8087634(void);
 bool32 sub_808766C(void);
-void ClearLinkPlayerEventObjects(void);
+void ClearLinkPlayerObjectEvents(void);
 
 #endif // GUARD_OVERWORLD_H
