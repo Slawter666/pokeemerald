@@ -744,6 +744,10 @@ s32 AI_CalcDamage(u16 move, u8 battlerAtk, u8 battlerDef, u8 *typeEffectiveness,
     SetBattlerData(battlerDef);
 
     gBattleStruct->dynamicMoveType = 0;
+
+    if (move == MOVE_NATURE_POWER)
+        move = GetNaturePowerMove();
+
     SetTypeBeforeUsingMove(move, battlerAtk);
     GET_MOVE_TYPE(move, moveType);
 
@@ -802,6 +806,7 @@ s32 AI_CalcDamage(u16 move, u8 battlerAtk, u8 battlerDef, u8 *typeEffectiveness,
     }
     else
     {
+        effectivenessMultiplier = CalcTypeEffectivenessMultiplier(move, moveType, battlerAtk, battlerDef, FALSE);
         dmg = 0;
     }
 
@@ -1166,7 +1171,7 @@ s32 AI_GetAbility(u32 battlerId)
     // We've had ability overwritten by e.g. Worry Seed. It is not part of AI_PARTY in case of switching
     if (gBattleStruct->overwrittenAbilities[battlerId])
         return gBattleStruct->overwrittenAbilities[battlerId];
-    
+
     // The AI knows its own ability.
     if (IsBattlerAIControlled(battlerId))
         return knownAbility;
@@ -1634,7 +1639,8 @@ bool32 ShouldLowerStat(u8 battler, u16 battlerAbility, u8 stat)
     if ((gBattleMons[battler].statStages[stat] > MIN_STAT_STAGE && battlerAbility != ABILITY_CONTRARY)
       || (battlerAbility == ABILITY_CONTRARY && gBattleMons[battler].statStages[stat] < MAX_STAT_STAGE))
     {
-        if (battlerAbility == ABILITY_CLEAR_BODY
+        if (AI_DATA->holdEffects[battler] == HOLD_EFFECT_CLEAR_AMULET
+         || battlerAbility == ABILITY_CLEAR_BODY
          || battlerAbility == ABILITY_WHITE_SMOKE
          || battlerAbility == ABILITY_FULL_METAL_BODY)
             return FALSE;
@@ -1711,7 +1717,8 @@ bool32 ShouldLowerAttack(u8 battlerAtk, u8 battlerDef, u16 defAbility)
       && defAbility != ABILITY_CLEAR_BODY
       && defAbility != ABILITY_WHITE_SMOKE
       && defAbility != ABILITY_FULL_METAL_BODY
-      && defAbility != ABILITY_HYPER_CUTTER)
+      && defAbility != ABILITY_HYPER_CUTTER
+      && AI_DATA->holdEffects[battlerDef] != HOLD_EFFECT_CLEAR_AMULET)
         return TRUE;
     return FALSE;
 }
@@ -1727,7 +1734,8 @@ bool32 ShouldLowerDefense(u8 battlerAtk, u8 battlerDef, u16 defAbility)
       && defAbility != ABILITY_CLEAR_BODY
       && defAbility != ABILITY_WHITE_SMOKE
       && defAbility != ABILITY_FULL_METAL_BODY
-      && defAbility != ABILITY_BIG_PECKS)
+      && defAbility != ABILITY_BIG_PECKS
+      && AI_DATA->holdEffects[battlerDef] != HOLD_EFFECT_CLEAR_AMULET)
         return TRUE;
     return FALSE;
 }
@@ -1741,7 +1749,8 @@ bool32 ShouldLowerSpeed(u8 battlerAtk, u8 battlerDef, u16 defAbility)
       && defAbility != ABILITY_CONTRARY
       && defAbility != ABILITY_CLEAR_BODY
       && defAbility != ABILITY_FULL_METAL_BODY
-      && defAbility != ABILITY_WHITE_SMOKE)
+      && defAbility != ABILITY_WHITE_SMOKE
+      && AI_DATA->holdEffects[battlerDef] != HOLD_EFFECT_CLEAR_AMULET)
         return TRUE;
     return FALSE;
 }
@@ -1756,7 +1765,8 @@ bool32 ShouldLowerSpAtk(u8 battlerAtk, u8 battlerDef, u16 defAbility)
       && defAbility != ABILITY_CONTRARY
       && defAbility != ABILITY_CLEAR_BODY
       && defAbility != ABILITY_FULL_METAL_BODY
-      && defAbility != ABILITY_WHITE_SMOKE)
+      && defAbility != ABILITY_WHITE_SMOKE
+      && AI_DATA->holdEffects[battlerDef] != HOLD_EFFECT_CLEAR_AMULET)
         return TRUE;
     return FALSE;
 }
@@ -1771,7 +1781,8 @@ bool32 ShouldLowerSpDef(u8 battlerAtk, u8 battlerDef, u16 defAbility)
       && defAbility != ABILITY_CONTRARY
       && defAbility != ABILITY_CLEAR_BODY
       && defAbility != ABILITY_FULL_METAL_BODY
-      && defAbility != ABILITY_WHITE_SMOKE)
+      && defAbility != ABILITY_WHITE_SMOKE
+      && AI_DATA->holdEffects[battlerDef] != HOLD_EFFECT_CLEAR_AMULET)
         return TRUE;
     return FALSE;
 }
@@ -1785,7 +1796,8 @@ bool32 ShouldLowerAccuracy(u8 battlerAtk, u8 battlerDef, u16 defAbility)
       && defAbility != ABILITY_CLEAR_BODY
       && defAbility != ABILITY_WHITE_SMOKE
       && defAbility != ABILITY_FULL_METAL_BODY
-      && defAbility != ABILITY_KEEN_EYE)
+      && defAbility != ABILITY_KEEN_EYE
+      && AI_DATA->holdEffects[battlerDef] != HOLD_EFFECT_CLEAR_AMULET)
         return TRUE;
     return FALSE;
 }
@@ -1799,7 +1811,8 @@ bool32 ShouldLowerEvasion(u8 battlerAtk, u8 battlerDef, u16 defAbility)
       && defAbility != ABILITY_CONTRARY
       && defAbility != ABILITY_CLEAR_BODY
       && defAbility != ABILITY_FULL_METAL_BODY
-      && defAbility != ABILITY_WHITE_SMOKE)
+      && defAbility != ABILITY_WHITE_SMOKE
+      && AI_DATA->holdEffects[battlerDef] != HOLD_EFFECT_CLEAR_AMULET)
         return TRUE;
     return FALSE;
 }
@@ -2091,6 +2104,7 @@ bool32 IsStatRaisingEffect(u16 effect)
     case EFFECT_BULK_UP:
     case EFFECT_GEOMANCY:
     case EFFECT_STOCKPILE:
+    case EFFECT_VICTORY_DANCE:
         return TRUE;
     default:
         return FALSE;
@@ -2428,19 +2442,41 @@ static bool32 PartyBattlerShouldAvoidHazards(u8 currBattler, u8 switchBattler)
 {
     struct Pokemon *mon = GetPartyBattlerPartyData(currBattler, switchBattler);
     u16 ability = GetMonAbility(mon);   // we know our own party data
-    u16 holdEffect = GetBattlerHoldEffect(GetMonData(mon, MON_DATA_HELD_ITEM), TRUE);
+    u16 holdEffect;
+    u16 species = GetMonData(mon, MON_DATA_SPECIES);
     u32 flags = gSideStatuses[GetBattlerSide(currBattler)] & (SIDE_STATUS_SPIKES | SIDE_STATUS_STEALTH_ROCK | SIDE_STATUS_STICKY_WEB | SIDE_STATUS_TOXIC_SPIKES);
+    s32 hazardDamage = 0;
+    u8 type1 = gSpeciesInfo[species].types[0];
+    u8 type2 = gSpeciesInfo[species].types[1];
+    u32 maxHp = GetMonData(mon, MON_DATA_MAX_HP);
 
     if (flags == 0)
         return FALSE;
 
-    if (ability == ABILITY_MAGIC_GUARD || ability == ABILITY_LEVITATE
-      || holdEffect == HOLD_EFFECT_HEAVY_DUTY_BOOTS)
+    if (ability == ABILITY_MAGIC_GUARD)
+        return FALSE;
+    if (gFieldStatuses & STATUS_FIELD_MAGIC_ROOM || ability == ABILITY_KLUTZ)
+        holdEffect = HOLD_EFFECT_NONE;
+    else
+        holdEffect = gItems[GetMonData(mon, MON_DATA_HELD_ITEM)].holdEffect;
+    if (holdEffect == HOLD_EFFECT_HEAVY_DUTY_BOOTS)
         return FALSE;
 
-    if (flags & (SIDE_STATUS_SPIKES | SIDE_STATUS_STEALTH_ROCK) && GetMonData(mon, MON_DATA_HP) < (GetMonData(mon, MON_DATA_MAX_HP) / 8))
-        return TRUE;
+    if (flags & SIDE_STATUS_STEALTH_ROCK)
+        hazardDamage += GetStealthHazardDamageByTypesAndHP(gBattleMoves[MOVE_STEALTH_ROCK].type, type1, type2, maxHp);
 
+    if (flags & SIDE_STATUS_SPIKES && ((type1 != TYPE_FLYING && type2 != TYPE_FLYING
+        && ability != ABILITY_LEVITATE && holdEffect != HOLD_EFFECT_AIR_BALLOON)
+        || holdEffect == HOLD_EFFECT_IRON_BALL || gFieldStatuses & STATUS_FIELD_GRAVITY))
+    {
+        u8 spikesDmg = maxHp / ((5 - gSideTimers[GetBattlerSide(currBattler)].spikesAmount) * 2);
+        if (spikesDmg == 0)
+            spikesDmg = 1;
+        hazardDamage += spikesDmg;
+    }
+
+    if (hazardDamage >= GetMonData(mon, MON_DATA_HP))
+        return TRUE;
     return FALSE;
 }
 

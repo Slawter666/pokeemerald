@@ -205,7 +205,7 @@ static bool8 FindMonThatAbsorbsOpponentsMove(void)
         if (AI_THINKING_STRUCT->aiFlags & AI_FLAG_ACE_POKEMON 
             && i == (CalculateEnemyPartyCount()-1))
             continue;
-        
+
 
         species = GetMonData(&party[i], MON_DATA_SPECIES);
         if (GetMonData(&party[i], MON_DATA_ABILITY_NUM) != 0)
@@ -832,8 +832,8 @@ static u32 GetBestMonTypeMatchup(struct Pokemon *party, int firstId, int lastId,
 
                 u8 atkType1 = gBattleMons[opposingBattler].type1;
                 u8 atkType2 = gBattleMons[opposingBattler].type2;
-                u8 defType1 = gSpeciesInfo[species].type1;
-                u8 defType2 = gSpeciesInfo[species].type2;
+                u8 defType1 = gSpeciesInfo[species].types[0];
+                u8 defType2 = gSpeciesInfo[species].types[1];
 
                 typeEffectiveness *= GetTypeModifier(atkType1, defType1);
                 if (atkType2 != atkType1)
